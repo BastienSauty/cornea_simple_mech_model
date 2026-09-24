@@ -13,13 +13,10 @@ from Simulation_Framework import Hyperelastic_framework, OutputManager, availabl
 
 def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
 
-    # read_from_msh returns a MeshData object (needs the gmsh Python module)
-    mesh_data = gmshio.read_from_msh(mesh_file, MPI.COMM_WORLD, 0, gdim=2)
-    domain, facet_tags = mesh_data.mesh, mesh_data.facet_tags
-
-    # Build the hyperelastic framework
-    mech = Hyperelastic_framework(domain, mech_params_json)
-
+    # Build the hyperelastic framework. The mesh file is read once, inside: mesh,
+    # facet tags and square coordinates u, v (for the fibres) -> mech.domain, ...
+    mech = Hyperelastic_framework(mesh_file, mech_params_json)
+ 
     # Boundary conditions
     # intraocular pressure, ramped during the simulation
     # (15 mmHg = 2.0e-3 MPa if lengths are in mm and stresses in MPa)
@@ -35,7 +32,7 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
         ["Dirichlet", LIMBUS,       ("clamped", 1)],
         ["Pressure",  POSTERIOR,    p_iop],            # follower pressure normal to the posterior face
     ]                                                  # anterior face: free (zero traction)
-    mech.build_BCs(facet_tags, boundary_conditions)
+    mech.build_BCs(boundary_conditions)
     mech.build_solver()
 
     # Outputs: results/<name>.xdmf and results/<name>_scalars.csv, "time" = pressure

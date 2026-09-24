@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from typing import Literal, Optional
+from typing import Literal, Optional, List
 import json
 
 SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
@@ -8,7 +8,7 @@ SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
 REQUIRED = {
     "Neo-Hookean":   ("C_10", "D"),
     "Mooney-Rivlin": ("C_10", "C_01", "D"),
-    "HGO":           ("C_10", "D", "k1", "k2", "kappa_disp"),
+    "HGO":           ("C_10", "D", "k1", "k2", "a4", "a6"),
 }
 
 
@@ -24,8 +24,8 @@ class MechParams:
     # HGO fibre family
     k1: Optional[float] = None        # fibre stiffness [stress]
     k2: Optional[float] = None        # fibre exponential coefficient [-]
-    kappa_disp: Optional[float] = None  # fibre dispersion, 0 (aligned) to 1/3 (isotropic)
-    fiber_angle: float = 0.0          # fibre angle in the reference square [deg], 0 = along u
+    a4: Optional[List[float]] = None        # orientation vector [1,0,0]
+    a6: Optional[List[float]] = None        # orientation vector [1,0,0]
 
     def __post_init__(self):
         valid = SedfType.__args__
@@ -36,9 +36,20 @@ class MechParams:
             raise ValueError(f"{self.sedf_type} requires: {missing}")
         if self.D <= 0:
             raise ValueError("D must be > 0 (D -> 0 is the incompressible limit)")
-        if self.kappa_disp is not None and not 0 <= self.kappa_disp <= 1 / 3:
-            raise ValueError("kappa_disp must be in [0, 1/3]")
 
+        # fibres
+        if self.k1 is not None and self.k1 < 0:
+            raise ValueError("k1 must be >= 0")
+        if self.k2 is not None and self.k2 <= 0:
+            raise ValueError("k2 must be > 0 (psi_fibre contains k1 / (2 k2))")
+        for name in ("a4", "a6"):
+            a = getattr(self, name)
+            if a is None:                       # not used by this law
+                continue
+            if len(a) != 3 or not any(a):
+                raise ValueError(f"{name} must be a non-zero vector [a_u, a_v, a_theta], got {a}")
+            setattr(self, name, [float(c) for c in a])      # e.g. [1, 0, 0] -> [1.0, 0.0, 0.0]
+            
     @property
     def mu(self):
         """Initial shear modulus of the matrix."""

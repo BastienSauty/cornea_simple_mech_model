@@ -239,7 +239,7 @@ class OutputManager:
             self.xdmf.write_mesh(mech.domain)
             fdim = mech.domain.topology.dim - 1
             mech.domain.topology.create_connectivity(fdim, mech.domain.topology.dim)
-            mech.facet_tag.name = "facet_tags"
+            mech.facet_tag.name = "facet_tag"
             self.xdmf.write_meshtags(mech.facet_tag, mech.domain.geometry)
 
         # ---- scalars: one compiled evaluator each, CSV written on rank 0 ----

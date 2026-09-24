@@ -6,11 +6,17 @@
 from .parameters_class import MechParams
 
 
+import gmsh
+from mpi4py import MPI
+import numpy as np
+ 
 from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx import fem, mesh, io
+from dolfinx.io import gmsh as gmshio
 import ufl
 from petsc4py.PETSc import ScalarType
 from dolfinx import log
+
 
 def _grad_axi(u, r):
     """
@@ -29,6 +35,24 @@ def _inplane(A, w):
     axisymmetric one (block-diagonal: the hoop component does not mix in)."""
     return ufl.as_vector([A[0, 0] * w[0] + A[0, 1] * w[1],
                           A[1, 0] * w[0] + A[1, 1] * w[1]])
+  
+def _push_axisymmetric(F_map, A):
+    """
+    Direction A = (a_u, a_v, a_theta) given in the reference square -> unit UFL vector
+    (a_r, a_z, a_theta) on the cornea.
+    The in-plane part gives the new in-plane direction, F_map . (a_u, a_v), with
+    F_map = d(r, z)/d(u, v), but keeps the length it has in A; the theta part is
+    untouched. So the split between in-plane and hoop components set in the square is
+    preserved exactly (e.g. A = [1, 0, 1] stays at 45 deg from the hoop direction).
+    """
+    A = np.asarray(A, dtype=float)
+    n_plane = np.linalg.norm(A[:2])
+    if n_plane == 0:                                   # pure hoop direction
+        return ufl.as_vector([0.0, 0.0, 1.0])
+    a_rz = ufl.dot(F_map, ufl.as_vector(A[:2]))
+    a_rz = n_plane * a_rz / ufl.sqrt(ufl.dot(a_rz, a_rz))
+    a = ufl.as_vector([a_rz[0], a_rz[1], A[2]])
+    return a / ufl.sqrt(ufl.dot(a, a))
  
 
 
@@ -36,9 +60,17 @@ class Hyperelastic_framework:
     """
     This class builds a simple hyperelastic framework. Several hyperelastic law can be implemented.
     """
-    def __init__(self, domain, mech_params_json):
-
-        self.domain = domain
+    def __init__(self, mesh_file, mech_params_json, comm=MPI.COMM_WORLD):
+        """
+        mesh_file        : gmsh 2.2 .msh file of the (r, z) section. Read once, here:
+                           self.domain, self.facet_tag, self.cell_tags and, if the
+                           file stores them as $NodeData, the square coordinates
+                           self.square_coords = [u, v] (P1 fields, used for the fibres).
+        mech_params_json : material parameters, see parameters_class.MechParams.
+        """
+        self.mesh_file = mesh_file
+        self._read_mesh(mesh_file, comm)
+ 
         self.V_u = fem.functionspace(self.domain, ("Lagrange", 2, (self.domain.geometry.dim,))) # disp function space
 
         self.u = fem.Function(self.V_u)   # displacement unknown — real Function, holds DOF values
@@ -50,6 +82,53 @@ class Hyperelastic_framework:
         # Build the weak form directly
         self.build_weak_form()
         print(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}')
+
+
+    def _read_mesh(self, mesh_file, comm, rank=0):
+        """
+        Open the file once with gmsh (on `rank`) and extract the mesh, the physical
+        tags and the $NodeData u, v, which correspond to the unmapped coordinates. gmsh turns each $NodeData block into a view.
+        """
+        node_data = None
+        if comm.rank == rank:
+            gmsh.initialize()
+            gmsh.option.setNumber("General.Terminal", 0)
+            gmsh.merge(mesh_file)
+            mesh_data = gmshio.model_to_mesh(gmsh.model, comm, rank, gdim=2)
+            node_data = {}
+            for tag in gmsh.view.getTags():
+                name = gmsh.option.getString(f"View[{gmsh.view.getIndex(tag)}].Name")
+                _, nodes, values, _, _ = gmsh.view.getModelData(tag, 0)
+                data = np.full(int(max(nodes)), np.nan)
+                data[np.asarray(nodes, dtype=int) - 1] = np.asarray(values).ravel()
+                node_data[name] = data          # indexed by node tag - 1
+            gmsh.finalize()
+        else:
+            mesh_data = gmshio.model_to_mesh(gmsh.model, comm, rank, gdim=2)
+        node_data = comm.bcast(node_data, root=rank)
+ 
+        self.domain = mesh_data.mesh
+        self.facet_tag = mesh_data.facet_tags
+        self.cell_tags = mesh_data.cell_tags
+ 
+        # square coordinates as P1 fields. For P1 on a linear mesh the dofs of a cell
+        # are its geometry nodes in the same local order, and input_global_indices
+        # gives the original number (gmsh tag - 1) of each local geometry node.
+        self.square_coords = None
+        if "u" in node_data and "v" in node_data:
+            if self.domain.geometry.cmap.degree != 1:
+                raise RuntimeError("u, v node data can only be loaded on a linear mesh")
+            V = fem.functionspace(self.domain, ("Lagrange", 1))
+            original = self.domain.geometry.input_global_indices
+            self.square_coords = []
+            for name in ("u", "v"):
+                f = fem.Function(V, name=name)
+                f.x.array[V.dofmap.list] = node_data[name][original][self.domain.geometry.dofmap]
+                f.x.scatter_forward()
+                self.square_coords.append(f)
+        print(f"[setup] Mesh read from {mesh_file}"
+              + (" (with square coordinates u, v)" if self.square_coords else ""))
+ 
 
     def strain_energy_density_function(self):
         """
@@ -74,7 +153,56 @@ class Hyperelastic_framework:
             D = fem.Constant(self.domain, ScalarType(self.mech_params.D))
 
             psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/D *(self.J - 1)**2
+
+        elif self.mech_params.sedf_type=='HGO':
+            # Isotropic contribution
+            C_dev = self.J**(-2/3)*ufl.dot(self.F.T, self.F)
+            I1_dev = ufl.tr(C_dev)
+            I2_dev = 1/2* (ufl.tr(C_dev) ** 2 - ufl.tr(ufl.dot(C_dev, C_dev)))
+
+            C01 = fem.Constant(self.domain, ScalarType(self.mech_params.C_01))
+            C10 = fem.Constant(self.domain, ScalarType(self.mech_params.C_10))
+            D = fem.Constant(self.domain, ScalarType(self.mech_params.D))
+
+            psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/D *(self.J - 1)**2
+
+            # Anisotropic contribution. The fibre directions are fields, one unit vector
+            # per cell, transported from the reference square (see _fibre_orientation_field)
+            if not hasattr(self, "a4"):
+                self._fibre_orientation_field()
+
+            k1 = fem.Constant(self.domain, ScalarType(self.mech_params.k1))
+            k2 = fem.Constant(self.domain, ScalarType(self.mech_params.k2))
+
+            C = ufl.dot(self.F.T, self.F)
+            I4 = ufl.inner(ufl.outer(self.a4, self.a4), C)
+            I6 = ufl.inner(ufl.outer(self.a6, self.a6), C)
+
+            psi += k1/(2*k2) * (ufl.exp(k2 * (I4 - 1)**2) + ufl.exp(k2 * (I6 - 1)**2) - 2 )
         return(psi)
+
+    def _fibre_orientation_field(self):
+        """
+        Build self.a4, self.a6: fibre directions (unit UFL vectors in r, z, theta),
+        given in the reference square by mech_params.a4, a6 and pushed onto the cornea.
+ 
+        self.square_coords = [u, v] are the square coordinates of the nodes, read from
+        the mesh file. grad(u, v) = d(u, v)/d(r, z) is the Jacobian of the inverse map,
+        so F_map = d(r, z)/d(u, v) is its inverse. Everything stays in UFL: the
+        directions are evaluated exactly at the quadrature points.
+        """
+        if self.square_coords is None:
+            raise RuntimeError(f"fibre directions need the square coordinates u, v, but "
+                               f"{self.mesh_file} has no $NodeData 'u' and 'v'")
+ 
+        G = ufl.grad(ufl.as_vector(self.square_coords))   # d(u, v)/d(r, z)
+        F_map = ufl.inv(G)                                 # d(r, z)/d(u, v)
+ 
+        self.a4 = _push_axisymmetric(F_map, self.mech_params.a4)
+        self.a6 = _push_axisymmetric(F_map, self.mech_params.a6)
+        print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
+              f"a6 = {self.mech_params.a6} (square)")
+
 
     def build_weak_form(self):
         """
@@ -103,7 +231,7 @@ class Hyperelastic_framework:
         self.R_u = ufl.inner(_grad_axi(self.v, self.r), PK1) * self.r * self.dx
 
 
-    def build_BCs(self, facet_tag, boundary_conditions, slip_penalty=1e3):
+    def build_BCs(self, boundary_conditions, slip_penalty=1e3):
         """
         facet_tag           : dolfinx MeshTags of the boundary facets (from cornea.msh).
         boundary_conditions : list of [type, marker, values]:
@@ -122,9 +250,8 @@ class Hyperelastic_framework:
             self.bc_form : UFL form to add to the residual
         """
         self.fdim = self.domain.topology.dim - 1
-        self.facet_tag = facet_tag
         # subdomain_data is required for ds(marker) to integrate over the tagged facets
-        self.ds = ufl.Measure("ds", domain=self.domain, subdomain_data=facet_tag,
+        self.ds = ufl.Measure("ds", domain=self.domain, subdomain_data=self.facet_tag,
                               metadata=self.metadata)
  
         N = ufl.FacetNormal(self.domain)       # outward normal, reference configuration
@@ -136,7 +263,7 @@ class Hyperelastic_framework:
  
             if bc_type == "Dirichlet":
                 value, axis = values
-                facets = facet_tag.find(marker)
+                facets = self.facet_tag.find(marker)
                 dofs = fem.locate_dofs_topological(self.V_u.sub(axis), self.fdim, facets)
                 if isinstance(value, str) and value == "clamped":
                     value = ScalarType(0.0)
