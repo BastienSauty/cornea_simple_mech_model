@@ -1,0 +1,5 @@
+# Python environment and caches
+__pycache__/
+
+# generated outputs
+results/
