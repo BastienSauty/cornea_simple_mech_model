@@ -192,14 +192,15 @@ This works inside or outside the container. The XDMF file can also be opened in
 |---|---|---|
 | `Neo-Hookean` | $C_{10}\,(\bar{I}_1 - 3) + \dfrac{(J-1)^2}{D}$ | `C_10`, `D` |
 | `Mooney-Rivlin` | $C_{10}\,(\bar{I}_1 - 3) + C_{01}\,(\bar{I}_2 - 3) + \dfrac{(J-1)^2}{D}$ | `C_10`, `C_01`, `D` |
-| `HGO` | *declared in `MechParams`, not yet implemented in the framework* | `C_10`, `D`, `k1`, `k2`, `kappa_disp` |
+| `HGO` | $C_{10}\,(\bar{I}_1 - 3) + \dfrac{(J-1)^2}{D} + \dfrac{k_1}{2 k_2}\sum_{i\in\{4,6\}} \left[\mathrm{exp}~(k_2(I_i-1)^2) - 1\right]$ | `C_10`, `D`, `k1`, `k2`, `kappa_disp`, `a_4`, `a_6` |
 
-$\bar{I}_1 = \operatorname{tr}\bar{\mathbf{C}}$ and
-$\bar{I}_2 = \tfrac{1}{2}\left[(\operatorname{tr}\bar{\mathbf{C}})^2 - \operatorname{tr}(\bar{\mathbf{C}}^2)\right]$
+$\bar{I}_1 = \mathrm{tr}~\bar{\mathbf{C}}$ and
+$\bar{I}_2 = \tfrac{1}{2}\left[(\mathrm{tr}~\bar{\mathbf{C}})^2 - \mathrm{tr}~(\bar{\mathbf{C}}^2)\right]$
 are the invariants of the isochoric right Cauchy-Green tensor
 $\bar{\mathbf{C}} = J^{-2/3}\,\mathbf{F}^T\mathbf{F}$. $D$ controls the
 compressibility: the initial bulk modulus is $\kappa = 2/D$, and $D \to 0$ is
-the incompressible limit. Parameters not used by the chosen law are ignored,
+the incompressible limit. 
+$I_4 = (a_4 \otimes a_4):\mathbf{C}$ and $I_6 = (a_6 \otimes a_6):\mathbf{C}$ are the stretch in the directions given by $a_4$ and $a_6$. The latter are defined in the local reference system, as a 3 component unit vector. Parameters not used by the chosen law are ignored,
 like `C_01` for Neo-Hookean above.
 
 ### Mesh
