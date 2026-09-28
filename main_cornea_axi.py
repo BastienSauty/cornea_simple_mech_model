@@ -21,6 +21,7 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
     # intraocular pressure, ramped during the simulation
     # (15 mmHg = 2.0e-3 MPa if lengths are in mm and stresses in MPa)
     p_iop = fem.Constant(mech.domain, ScalarType(0.0))
+    p_max = 18 * 0.000133322 # 18 mmHg to MPa
 
     # physical tags written in cornea.msh by cornea/mesh_io.py
     ANTERIOR, POSTERIOR, LIMBUS, CENTRAL_LINE = 1, 2, 3, 4
@@ -38,7 +39,7 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
     # Outputs: results/<name>.xdmf and results/<name>_scalars.csv, "time" = pressure
     with OutputManager(mech, f"results/{name}", fields=fields, scalars=scalars) as out:
         out.write(0.0)                                 # reference state
-        for n, p in enumerate(np.linspace(0, 2.0e-3, 20)[1:], start=1):
+        for n, p in enumerate(np.linspace(0, p_max, 20)[1:], start=1):
             p_iop.value = p
             mech.solve_one_step(n, p)
             out.write(p)
