@@ -22,14 +22,22 @@ pm.plot_field("cauchy_stress", component="tt", deformed=True, mirror=True,
 fig.tight_layout()
 fig.savefig("results/cornea_IOP_fields.png", dpi=200)
 
-
-fig, axes = plt.subplots(2, 1, figsize=(10, 7))
-pm.plot_field("PK1_stress", component="zz", deformed=False, mirror=False,
-              symmetric=True, ax=axes[0])
-pm.plot_field("green_lagrange", component="zz", deformed=False, mirror=False,
-              symmetric=True, ax=axes[1])
+fig, axes = plt.subplots(1, 1, figsize=(7,5))
+pm.plot_field("displacement", component="z", deformed=True, mirror=False, ax=axes)
 fig.tight_layout()
-fig.savefig("results/cornea_IOP_zz.png", dpi=200)
+fig.savefig("results/cornea_IOP_disp.png", dpi=200)
+
+
+fig, axes = plt.subplots(1, 1, figsize=(7,5))
+pm.plot_field("PK1_stress", component="zz", deformed=False, mirror=False,
+              symmetric=True, ax=axes)
+fig.tight_layout()
+fig.savefig("results/cornea_IOP_PK1zz.png", dpi=200)
+fig, axes = plt.subplots(1, 1, figsize=(7,5))
+pm.plot_field("green_lagrange", component="zz", deformed=False, mirror=False,
+              symmetric=True, ax=axes)
+fig.tight_layout()
+fig.savefig("results/cornea_IOP_Ezz.png", dpi=200)
 
 # ---- profile along the central axis r = 0 (posterior -> anterior apex) ----
 fig, axes = plt.subplots(1, 2, figsize=(12, 4))
