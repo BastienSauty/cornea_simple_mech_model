@@ -21,7 +21,8 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
     # intraocular pressure, ramped during the simulation
     # (15 mmHg = 2.0e-3 MPa if lengths are in mm and stresses in MPa)
     p_iop = fem.Constant(mech.domain, ScalarType(0.0))
-    p_max = 18 * 0.000133322 # 18 mmHg to MPa
+    p_max = 20* 0.000133322 # 18 mmHg to MPa
+    n_steps = 20
 
     # physical tags written in cornea.msh by cornea/mesh_io.py
     ANTERIOR, POSTERIOR, LIMBUS, CENTRAL_LINE = 1, 2, 3, 4
@@ -39,7 +40,7 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
     # Outputs: results/<name>.xdmf and results/<name>_scalars.csv, "time" = pressure
     with OutputManager(mech, f"results/{name}", fields=fields, scalars=scalars) as out:
         out.write(0.0)                                 # reference state
-        for n, p in enumerate(np.linspace(0, p_max, 20)[1:], start=1):
+        for n, p in enumerate(np.linspace(0, p_max, n_steps)[1:], start=1):
             p_iop.value = p
             mech.solve_one_step(n, p)
             out.write(p)
@@ -48,9 +49,9 @@ def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
 
 
 if __name__ == '__main__':
-    name = "cornea_IOP"
+    name = "cornea_IOP_Giammarini"
     mesh_file = "cornea.msh"
-    mech_params_json = "mech_params.json"
+    mech_params_json = "mech_params_Giammarini2026.json"
 
     # available_outputs()    # prints every output name with its description
 
@@ -61,7 +62,7 @@ if __name__ == '__main__':
 
     if MPI.COMM_WORLD.rank == 0:
         import matplotlib.pyplot as plt
-        plt.plot(history["t"] * 1e3, history["apex_uz_anterior"] * 1e3, "o-")
-        plt.xlabel("IOP [kPa]")
-        plt.ylabel("anterior apex displacement [µm]")
+        plt.plot(history["apex_uz_anterior"] * 1e3, history["t"] / 0.000133322, "o-")
+        plt.ylabel("IOP [mmHg]")
+        plt.xlabel("anterior apex displacement [µm]")
         plt.savefig(f"results/{name}_apex.png", dpi=150)

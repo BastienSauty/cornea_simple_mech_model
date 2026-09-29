@@ -8,7 +8,7 @@ SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
 REQUIRED = {
     "Neo-Hookean":   ("C_10", "D"),
     "Mooney-Rivlin": ("C_10", "C_01", "D"),
-    "HGO":           ("C_10", "D", "k1", "k2", "a4", "a6"),
+    "HGO":           ("C_10", "D", "k1", "k2", "a4", "a6", "kappa"),
 }
 
 
@@ -24,6 +24,7 @@ class MechParams:
     # HGO fibre family
     k1: Optional[float] = None        # fibre stiffness [stress]
     k2: Optional[float] = None        # fibre exponential coefficient [-]
+    kappa: Optional[float] = None        # fibre dispersion
     a4: Optional[List[float]] = None        # orientation vector [1,0,0]
     a6: Optional[List[float]] = None        # orientation vector [1,0,0]
 
@@ -42,6 +43,8 @@ class MechParams:
             raise ValueError("k1 must be >= 0")
         if self.k2 is not None and self.k2 <= 0:
             raise ValueError("k2 must be > 0 (psi_fibre contains k1 / (2 k2))")
+        if self.kappa is not None and self.kappa < 0:
+            raise ValueError("kappa must be >= 0")
         for name in ("a4", "a6"):
             a = getattr(self, name)
             if a is None:                       # not used by this law

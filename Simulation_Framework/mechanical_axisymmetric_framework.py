@@ -127,7 +127,7 @@ class Hyperelastic_framework:
             C10 = fem.Constant(self.domain, ScalarType(self.mech_params.C_10))
             D = fem.Constant(self.domain, ScalarType(self.mech_params.D))
 
-            psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/D *(self.J - 1)**2
+            psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/(2*D) * (self.J**2 - 1 - 2*ufl.ln(self.J))#+ 1/D *(self.J - 1)**2
 
             # Anisotropic contribution. The fibre directions are fields, one unit vector
             # per cell, transported from the mesh's local reference system (see
@@ -137,12 +137,21 @@ class Hyperelastic_framework:
 
             k1 = fem.Constant(self.domain, ScalarType(self.mech_params.k1))
             k2 = fem.Constant(self.domain, ScalarType(self.mech_params.k2))
+            kappa = fem.Constant(self.domain, ScalarType(self.mech_params.kappa))
 
             C = ufl.dot(self.F.T, self.F)
             I4 = ufl.inner(ufl.outer(self.a4, self.a4), C)
             I6 = ufl.inner(ufl.outer(self.a6, self.a6), C)
 
-            psi += k1/(2*k2) * (ufl.exp(k2 * (I4 - 1)**2) + ufl.exp(k2 * (I6 - 1)**2) - 2 )
+            E4 = kappa*(I1_dev-3) + (1-3*kappa)*(I4 -1)
+            E6 = kappa*(I1_dev-3) + (1-3*kappa)*(I6 -1)
+
+            def fibre_energy(E):
+                return ufl.conditional(ufl.gt(E, 0.0), ufl.exp(k2 * E**2) - 1, 0.0)
+
+            # psi += k1/(2*k2) * (ufl.exp(k2 * (I4 - 1)**2)-1 + ufl.exp(k2 * (I6 - 1)**2) -1 )
+            # psi += k1/(2*k2) * (fibre_energy(I4-1) + fibre_energy(I6-1))
+            psi += k1/(2*k2) * (fibre_energy(E4) + fibre_energy(E6))
         return(psi)
 
     def _fibre_orientation_field(self):
@@ -303,4 +312,7 @@ class Hyperelastic_framework:
                   f"residual {res_norm:.3e} | reason {reason}")
 
         if reason <= 0:
+
+            print(snes.getConvergedReason(), snes.getIterationNumber())
+            print(snes.getConvergenceHistory())
             raise RuntimeError(f"no convergence at step {n}, p = {p} (SNES reason {reason})")
