@@ -149,8 +149,6 @@ class Hyperelastic_framework:
             def fibre_energy(E):
                 return ufl.conditional(ufl.gt(E, 0.0), ufl.exp(k2 * E**2) - 1, 0.0)
 
-            # psi += k1/(2*k2) * (ufl.exp(k2 * (I4 - 1)**2)-1 + ufl.exp(k2 * (I6 - 1)**2) -1 )
-            # psi += k1/(2*k2) * (fibre_energy(I4-1) + fibre_energy(I6-1))
             psi += k1/(2*k2) * (fibre_energy(E4) + fibre_energy(E6))
         return(psi)
 
