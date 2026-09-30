@@ -1,5 +1,6 @@
 # author : B. Sauty ; 23 Sept 2026
 # Main file to run a simulation for the cornea under pressure.
+# This file is specific to this run. It should be adapted for each 
 
 import numpy as np
 
@@ -8,14 +9,14 @@ from dolfinx.io import gmsh as gmshio
 from dolfinx import fem
 from petsc4py.PETSc import ScalarType
 
-from Simulation_Framework import Hyperelastic_framework, OutputManager, available_outputs
+from Simulation_Framework import Hyperelastic_axisymmetric_framework, OutputManager, available_outputs
 
 
 def run_simulation(name, mesh_file, mech_params_json, fields, scalars):
 
     # Build the hyperelastic framework. The mesh file is read once, inside: mesh,
     # facet tags and square coordinates u, v (for the fibres) -> mech.domain, ...
-    mech = Hyperelastic_framework(mesh_file, mech_params_json)
+    mech = Hyperelastic_axisymmetric_framework(mesh_file, mech_params_json)
  
     # Boundary conditions
     # intraocular pressure, ramped during the simulation
@@ -52,6 +53,7 @@ if __name__ == '__main__':
     name = "cornea_IOP_Giammarini"
     mesh_file = "cornea.msh"
     mech_params_json = "mech_params_Giammarini2026.json"
+
 
     # available_outputs()    # prints every output name with its description
 
