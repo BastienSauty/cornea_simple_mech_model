@@ -12,7 +12,7 @@ SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
 REQUIRED = {
     "Neo-Hookean":   ("C_10", "D"),
     "Mooney-Rivlin": ("C_10", "C_01", "D"),
-    "HGO":           ("C_10", "D", "k1", "k2", "a4", "a6", "kappa"),
+    "HGO":           ("C_10", "C_01", "D", "k1", "k2", "a4", "a6", "kappa"),
 }
 
 

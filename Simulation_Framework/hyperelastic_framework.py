@@ -40,16 +40,16 @@ def _inplane(A, w):
 def _push_local_frame(e_1, e_2, e_3, A):
     """
     A = (a_1, e_2, a_3): a direction given by its components in the
-    mesh's local reference system (e_1, e_2, e_2) -> the same
+    mesh's local reference system (e_1, e_2, e_3) -> the same
     direction in physical (r, z, theta)/(x,y,z) space, as a unit UFL vector.
 
-    (e_1, e_2, e_2) is an orthonormal triad by construction directly within
+    (e_1, e_2, e_3) is an orthonormal triad by construction directly within
     the mesh. In the case of axisymmetry, the e_3 is built as the out of plane direction
     So this is a plain change of basis 
     A does not need to be a unit vector itself only the final result is 
     normalised.
     """
-    a = A[0] * e_1 + A[1] * e_2 + A[2] * e_2
+    a = A[0] * e_1 + A[1] * e_2 + A[2] * e_3
     return a / ufl.sqrt(ufl.dot(a, a))
  
 
@@ -74,7 +74,7 @@ class Hyperelastic_axisymmetric_framework:
         self.cell_tags = mesh_data.cell_tags
         self.e_1 = mesh_data.e_1
         self.e_2 = mesh_data.e_2
-        self.e_2 = mesh_data.e_2
+        self.e_3 = mesh_data.e_3
 
         print(f"[setup] Mesh read from {mesh_file}"
               + (" (with local reference system)" if mesh_data.has_lrs else ""))
@@ -112,8 +112,8 @@ class Hyperelastic_axisymmetric_framework:
         a4_local = fem.Constant(self.domain, ScalarType(self.mech_params.a4))
         a6_local = fem.Constant(self.domain, ScalarType(self.mech_params.a6))
  
-        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_2, a4_local)
-        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_2, a6_local)
+        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_3, a4_local)
+        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_3, a6_local)
         print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
               f"a6 = {self.mech_params.a6} (local frame)")
 
@@ -359,8 +359,8 @@ class Hyperelastic_3D_framework:
         a4_local = fem.Constant(self.domain, ScalarType(self.mech_params.a4))
         a6_local = fem.Constant(self.domain, ScalarType(self.mech_params.a6))
  
-        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_2, a4_local)
-        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_2, a6_local)
+        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_3, a4_local)
+        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_3, a6_local)
         print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
               f"a6 = {self.mech_params.a6} (local frame)")
 
