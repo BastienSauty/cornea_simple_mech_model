@@ -2,6 +2,10 @@ from dataclasses import dataclass, asdict
 from typing import Literal, Optional, List
 import json
 
+from dolfinx import fem
+from petsc4py.PETSc import ScalarType
+import ufl
+
 SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
 
 # parameters that must be set (not None) for each model
@@ -71,3 +75,57 @@ class MechParams:
     def to_json(self, path):
         with open(path, "w") as f:
             json.dump(asdict(self), f, indent=2)
+
+        
+    def strain_energy_density_function(self, mech):
+        """
+        called by build_weak_form. returns psi : the strain energy density function. 
+        """
+        if self.sedf_type=='Neo-Hookean':
+            C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
+            I1_dev = ufl.tr(C_dev)
+
+            C10 = fem.Constant(mech.domain, ScalarType(self.C_10))
+            D = fem.Constant(mech.domain, ScalarType(self.D))
+
+            psi = C10 *(I1_dev - 3) + 1/D *(mech.J - 1)**2
+
+        elif self.sedf_type=='Mooney-Rivlin':
+            C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
+            I1_dev = ufl.tr(C_dev)
+            I2_dev = 1/2* (ufl.tr(C_dev) ** 2 - ufl.tr(ufl.dot(C_dev, C_dev)))
+
+            C01 = fem.Constant(mech.domain, ScalarType(self.C_01))
+            C10 = fem.Constant(mech.domain, ScalarType(self.C_10))
+            D = fem.Constant(mech.domain, ScalarType(self.D))
+
+            psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/D *(mech.J - 1)**2
+
+        elif self.sedf_type=='HGO':
+            # Isotropic contribution
+            C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
+            I1_dev = ufl.tr(C_dev)
+            I2_dev = 1/2* (ufl.tr(C_dev) ** 2 - ufl.tr(ufl.dot(C_dev, C_dev)))
+
+            C01 = fem.Constant(mech.domain, ScalarType(self.C_01))
+            C10 = fem.Constant(mech.domain, ScalarType(self.C_10))
+            D = fem.Constant(mech.domain, ScalarType(self.D))
+
+            psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/(2*D) * (mech.J**2 - 1 - 2*ufl.ln(mech.J))#+ 1/D *(mech.J - 1)**2
+
+            k1 = fem.Constant(mech.domain, ScalarType(self.k1))
+            k2 = fem.Constant(mech.domain, ScalarType(self.k2))
+            kappa = fem.Constant(mech.domain, ScalarType(self.kappa))
+
+            C = ufl.dot(mech.F.T, mech.F)
+            I4 = ufl.inner(ufl.outer(mech.a4, mech.a4), C)
+            I6 = ufl.inner(ufl.outer(mech.a6, mech.a6), C)
+
+            E4 = kappa*(I1_dev-3) + (1-3*kappa)*(I4 -1)
+            E6 = kappa*(I1_dev-3) + (1-3*kappa)*(I6 -1)
+
+            def fibre_energy(E):
+                return ufl.conditional(ufl.gt(E, 0.0), ufl.exp(k2 * E**2) - 1, 0.0)
+
+            psi += k1/(2*k2) * (fibre_energy(E4) + fibre_energy(E6))
+        return(psi)

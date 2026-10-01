@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 _EXPORTS = {
     "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
     "Hyperelastic_3D_framework":  ".hyperelastic_framework",
-    "read_axisymmetric_mesh":  ".axisymmetric_mesh_io",
-    "MeshData":                ".axisymmetric_mesh_io",
+    "read_axisymmetric_mesh":  ".mesh_io",
+    "MeshData":                ".mesh_io",
     "OutputManager":           ".outputs_manager",
     "available_outputs":       ".outputs_manager",
     "MechParams":              ".parameters_class",
@@ -32,7 +32,7 @@ def __getattr__(name):
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
     from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
-    from .axisymmetric_mesh_io import read_axisymmetric_mesh, MeshData
+    from .mesh_io import read_axisymmetric_mesh, MeshData
     from .outputs_manager import OutputManager, available_outputs
     from .parameters_class import MechParams
     from .plots_manager import PlotManager, compare_scalars

@@ -1,12 +1,11 @@
 # author : B. Sauty ; 23 Sept 2026 (updated 28 Sept 2026: adopt the mesh's local
-# reference system e_circ/e_normal/e_theta in place of the square u, v coordinates,
-# and move mesh reading out to axisymmetric_mesh_io, shared by every framework)
+# reference system e_1/e_2/e_3 # and move mesh reading out to mesh_io, shared by every framework)
 # This file aims at building a framework class to model mechanical problems using fenicsx. Simple cases
 # Different classes are built in order to run several types of simulation. 
 # The geometry is always assumed to be axisymetrical. Single material
 
 from .parameters_class import MechParams
-from .axisymmetric_mesh_io import read_axisymmetric_mesh
+from .mesh_io import read_axisymmetric_mesh
 
 from mpi4py import MPI
  
@@ -20,6 +19,7 @@ from dolfinx import log
 def _grad_axi(u, r):
     """
     Function to compute the axisymmetric gradient in the coordinate system (r, z, theta)
+    with z the axis of symmetry and r = x[0] the radial coordinate
     """
     grad2D = ufl.grad(u)
     grad_axi = ufl.as_tensor([[grad2D[0,0], grad2D[0,1], 0],
@@ -35,77 +35,21 @@ def _inplane(A, w):
     return ufl.as_vector([A[0, 0] * w[0] + A[0, 1] * w[1],
                           A[1, 0] * w[0] + A[1, 1] * w[1]])
 
-def _push_local_frame(e_circ, e_normal, e_theta, A):
+def _push_local_frame(e_1, e_2, e_3, A):
     """
-    A = (a_circ, a_norm, a_theta): a direction given by its components in the
-    mesh's local reference system (e_circ, e_normal, e_theta) -> the same
-    direction in physical (r, z, theta) space, as a unit UFL vector.
+    A = (a_1, e_2, a_3): a direction given by its components in the
+    mesh's local reference system (e_1, e_2, e_2) -> the same
+    direction in physical (r, z, theta)/(x,y,z) space, as a unit UFL vector.
 
-    (e_circ, e_normal, e_theta) is an orthonormal triad by construction: circ
-    and normal are read straight from the mesh's exact orientation frame, and
-    e_theta = (0, 0, 1) completes it with the hoop direction. 
+    (e_1, e_2, e_2) is an orthonormal triad by construction directly within
+    the mesh. In the case of axisymmetry, the e_3 is built as the out of plane direction
     So this is a plain change of basis 
     A does not need to be a unit vector itself only the final result is 
     normalised.
     """
-    a = A[0] * e_circ + A[1] * e_normal + A[2] * e_theta
+    a = A[0] * e_1 + A[1] * e_2 + A[2] * e_2
     return a / ufl.sqrt(ufl.dot(a, a))
  
-
-
-def strain_energy_density_function(mech):
-    """
-    called by build_weak_form. returns psi : the strain energy density function. 
-    """
-    if mech.mech_params.sedf_type=='Neo-Hookean':
-        C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
-        I1_dev = ufl.tr(C_dev)
-
-        C10 = fem.Constant(mech.domain, ScalarType(mech.mech_params.C_10))
-        D = fem.Constant(mech.domain, ScalarType(mech.mech_params.D))
-
-        psi = C10 *(I1_dev - 3) + 1/D *(mech.J - 1)**2
-
-    elif mech.mech_params.sedf_type=='Mooney-Rivlin':
-        C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
-        I1_dev = ufl.tr(C_dev)
-        I2_dev = 1/2* (ufl.tr(C_dev) ** 2 - ufl.tr(ufl.dot(C_dev, C_dev)))
-
-        C01 = fem.Constant(mech.domain, ScalarType(mech.mech_params.C_01))
-        C10 = fem.Constant(mech.domain, ScalarType(mech.mech_params.C_10))
-        D = fem.Constant(mech.domain, ScalarType(mech.mech_params.D))
-
-        psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/D *(mech.J - 1)**2
-
-    elif mech.mech_params.sedf_type=='HGO':
-        # Isotropic contribution
-        C_dev = mech.J**(-2/3)*ufl.dot(mech.F.T, mech.F)
-        I1_dev = ufl.tr(C_dev)
-        I2_dev = 1/2* (ufl.tr(C_dev) ** 2 - ufl.tr(ufl.dot(C_dev, C_dev)))
-
-        C01 = fem.Constant(mech.domain, ScalarType(mech.mech_params.C_01))
-        C10 = fem.Constant(mech.domain, ScalarType(mech.mech_params.C_10))
-        D = fem.Constant(mech.domain, ScalarType(mech.mech_params.D))
-
-        psi = C10 *(I1_dev - 3) + C01 *(I2_dev-3) + 1/(2*D) * (mech.J**2 - 1 - 2*ufl.ln(mech.J))#+ 1/D *(mech.J - 1)**2
-
-        k1 = fem.Constant(mech.domain, ScalarType(mech.mech_params.k1))
-        k2 = fem.Constant(mech.domain, ScalarType(mech.mech_params.k2))
-        kappa = fem.Constant(mech.domain, ScalarType(mech.mech_params.kappa))
-
-        C = ufl.dot(mech.F.T, mech.F)
-        I4 = ufl.inner(ufl.outer(mech.a4, mech.a4), C)
-        I6 = ufl.inner(ufl.outer(mech.a6, mech.a6), C)
-
-        E4 = kappa*(I1_dev-3) + (1-3*kappa)*(I4 -1)
-        E6 = kappa*(I1_dev-3) + (1-3*kappa)*(I6 -1)
-
-        def fibre_energy(E):
-            return ufl.conditional(ufl.gt(E, 0.0), ufl.exp(k2 * E**2) - 1, 0.0)
-
-        psi += k1/(2*k2) * (fibre_energy(E4) + fibre_energy(E6))
-    return(psi)
-
 
 class Hyperelastic_axisymmetric_framework:
     """
@@ -116,8 +60,8 @@ class Hyperelastic_axisymmetric_framework:
         mesh_file        : gmsh 2.2 .msh file of the (r, z) section, as written by
                            cornea_meshing_package: self.domain, self.facet_tag,
                            self.cell_tags and, if the file stores them as
-                           $ElementData "circ"/"normal", the local reference system
-                           self.e_circ, self.e_normal, self.e_theta (used for the
+                           $ElementData "e_1"/"e_2", the local reference system
+                           self.e_1, self.e_2, self.e83 (used for the
                            fibres) -- see axisymmetric_mesh_io.read_axisymmetric_mesh.
         mech_params_json : material parameters, see parameters_class.MechParams.
         """
@@ -126,9 +70,9 @@ class Hyperelastic_axisymmetric_framework:
         self.domain = mesh_data.domain
         self.facet_tag = mesh_data.facet_tag
         self.cell_tags = mesh_data.cell_tags
-        self.e_circ = mesh_data.e_circ
-        self.e_normal = mesh_data.e_normal
-        self.e_theta = mesh_data.e_theta
+        self.e_1 = mesh_data.e_1
+        self.e_2 = mesh_data.e_2
+        self.e_2 = mesh_data.e_2
 
         print(f"[setup] Mesh read from {mesh_file}"
               + (" (with local reference system)" if mesh_data.has_lrs else ""))
@@ -157,17 +101,17 @@ class Hyperelastic_axisymmetric_framework:
         """
         Build self.a4, self.a6: fibre directions (unit UFL vectors in r, z, theta),
         given in the mesh's local reference system (LRS) by mech_params.a4, a6 =
-        (a_circ, a_norm, a_theta), and expressed in physical (r, z, theta)
+        (a_1, a_2, a_3), and expressed in physical (r, z, theta)
         coordinates by a plain orthonormal change of basis (see _push_local_frame).
         """
-        if not hasattr(self, "e_circ") or self.e_circ is None:
+        if not hasattr(self, "e_1") or self.e_1 is None:
             raise RuntimeError(f"fibre directions need the mesh's local reference system, but "
-                               f"{self.mesh_file} has no $ElementData 'circ' and 'normal'")
+                               f"{self.mesh_file} has no $ElementData 'e_1' and 'e_2'")
         a4_local = fem.Constant(self.domain, ScalarType(self.mech_params.a4))
         a6_local = fem.Constant(self.domain, ScalarType(self.mech_params.a6))
  
-        self.a4 = _push_local_frame(self.e_circ, self.e_normal, self.e_theta, a4_local)
-        self.a6 = _push_local_frame(self.e_circ, self.e_normal, self.e_theta, a6_local)
+        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_2, a4_local)
+        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_2, a6_local)
         print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
               f"a6 = {self.mech_params.a6} (local frame)")
 
@@ -191,7 +135,7 @@ class Hyperelastic_axisymmetric_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = strain_energy_density_function(self)
+        self.psi = self.mech_params.strain_energy_density_function(self)
         PK1 = ufl.diff(self.psi, self.F) # PK1 stress
 
         # Residuals
@@ -311,7 +255,6 @@ class Hyperelastic_axisymmetric_framework:
                   f"residual {res_norm:.3e} | reason {reason}")
 
         if reason <= 0:
-
             print(snes.getConvergedReason(), snes.getIterationNumber())
             print(snes.getConvergenceHistory())
             raise RuntimeError(f"no convergence at step {n}, p = {p} (SNES reason {reason})")
@@ -328,8 +271,8 @@ class Hyperelastic_3D_framework:
         mesh_file        : gmsh 2.2 .msh file of the (r, z) section, as written by
                            cornea_meshing_package: self.domain, self.facet_tag,
                            self.cell_tags and, if the file stores them as
-                           $ElementData "circ"/"normal", the local reference system
-                           self.e_circ, self.e_normal, self.e_theta (used for the
+                           $ElementData "e_1"/"e_2", the local reference system
+                           self.e_1, self.e_2, self.e_3 (used for the
                            fibres) -- see axisymmetric_mesh_io.read_axisymmetric_mesh.
         mech_params_json : material parameters, see parameters_class.MechParams.
         """
@@ -338,9 +281,9 @@ class Hyperelastic_3D_framework:
         self.domain = mesh_data.domain
         self.facet_tag = mesh_data.facet_tag
         self.cell_tags = mesh_data.cell_tags
-        self.e_circ = mesh_data.e_circ
-        self.e_normal = mesh_data.e_normal
-        self.e_theta = mesh_data.e_theta
+        self.e_1 = mesh_data.e_1
+        self.e_2 = mesh_data.e_2
+        self.e_3 = mesh_data.e_3
 
         print(f"[setup] Mesh read from {mesh_file}"
               + (" (with local reference system)" if mesh_data.has_lrs else ""))
@@ -366,19 +309,19 @@ class Hyperelastic_3D_framework:
 
     def _fibre_orientation_field(self):
         """
-        Build self.a4, self.a6: fibre directions (unit UFL vectors in r, z, theta),
+        Build self.a4, self.a6: fibre directions (unit UFL vectors in x,y,z),
         given in the mesh's local reference system (LRS) by mech_params.a4, a6 =
-        (a_circ, a_norm, a_theta), and expressed in physical (r, z, theta)
+        (a_1, a_2, a_3), and expressed in physical (x,y,z)3
         coordinates by a plain orthonormal change of basis (see _push_local_frame).
         """
-        if not hasattr(self, "e_circ") or self.e_circ is None:
+        if not hasattr(self, "e_1") or self.e_1 is None:
             raise RuntimeError(f"fibre directions need the mesh's local reference system, but "
-                               f"{self.mesh_file} has no $ElementData 'circ' and 'normal'")
+                               f"{self.mesh_file} has no $ElementData 'e_1' and 'e_2'")
         a4_local = fem.Constant(self.domain, ScalarType(self.mech_params.a4))
         a6_local = fem.Constant(self.domain, ScalarType(self.mech_params.a6))
  
-        self.a4 = _push_local_frame(self.e_circ, self.e_normal, self.e_theta, a4_local)
-        self.a6 = _push_local_frame(self.e_circ, self.e_normal, self.e_theta, a6_local)
+        self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_2, a4_local)
+        self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_2, a6_local)
         print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
               f"a6 = {self.mech_params.a6} (local frame)")
 
@@ -401,7 +344,7 @@ class Hyperelastic_3D_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = strain_energy_density_function(self)
+        self.psi = self.mech_params.strain_energy_density_function(self)
         PK1 = ufl.diff(self.psi, self.F) # PK1 stress
 
         # Residuals
