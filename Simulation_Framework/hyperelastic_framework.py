@@ -5,7 +5,9 @@
 # The geometry is always assumed to be axisymetrical. Single material
 
 from .parameters_class import MechParams
-from .mesh_io import read_axisymmetric_mesh
+from .mesh_io import read_mesh
+
+from functools import cached_property
 
 from mpi4py import MPI
  
@@ -62,11 +64,11 @@ class Hyperelastic_axisymmetric_framework:
                            self.cell_tags and, if the file stores them as
                            $ElementData "e_1"/"e_2", the local reference system
                            self.e_1, self.e_2, self.e83 (used for the
-                           fibres) -- see axisymmetric_mesh_io.read_axisymmetric_mesh.
+                           fibres) -- see mesh_io.read_mesh.
         mech_params_json : material parameters, see parameters_class.MechParams.
         """
         self.mesh_file = mesh_file
-        mesh_data = read_axisymmetric_mesh(mesh_file, comm)
+        mesh_data = read_mesh(mesh_file, comm)
         self.domain = mesh_data.domain
         self.facet_tag = mesh_data.facet_tag
         self.cell_tags = mesh_data.cell_tags
@@ -141,6 +143,43 @@ class Hyperelastic_axisymmetric_framework:
         # Residuals
         self.R_u = ufl.inner(_grad_axi(self.v, self.r), PK1) * self.r * self.dx
 
+
+    @property
+    def output_meta(self):
+        """Metadata for the OutputManager: labels of the components (r, z, theta), axisymmetric."""
+        return {"axes": ["r", "z", "t"], "axisymmetric": True}
+
+    @cached_property
+    def quantities(self):
+        """
+        Standard output quantities as UFL expressions in (r, z, theta). Symbolic only:
+        nothing is compiled here, the OutputManager compiles what it is given.
+        """
+        I = ufl.Identity(3)
+        PK1 = ufl.diff(self.psi, self.F)
+        sigma = (1 / self.J) * ufl.dot(PK1, self.F.T)
+        dev = sigma - ufl.tr(sigma) / 3 * I
+        return {
+            "displacement": self.u,
+            "PK1_stress": PK1,
+            "cauchy_stress": sigma,
+            "green_lagrange": 0.5 * (ufl.dot(self.F.T, self.F) - I),
+            "J": self.J,
+            "psi": self.psi,
+            "von_mises": ufl.sqrt(3 / 2 * ufl.inner(dev, dev)),
+            "hydrostatic_pressure": -ufl.tr(sigma) / 3,
+            "hoop_stretch": 1 + self.u[0] / self.r,
+        }
+
+    def volume_integral(self, expr):
+        """UFL form of the integral of expr over the full 3D body (2 pi r weight)."""
+        return 2 * ufl.pi * expr * self.r * self.dx
+
+    def surface_integral(self, expr, marker):
+        """UFL form of the integral of expr over the full 3D surface of tag `marker`. Needs build_BCs."""
+        if not hasattr(self, "ds"):
+            raise RuntimeError("call build_BCs before surface_integral (self.ds is defined there)")
+        return 2 * ufl.pi * expr * self.r * self.ds(marker)
 
     def build_BCs(self, boundary_conditions, slip_penalty=1e3):
         """
@@ -273,11 +312,11 @@ class Hyperelastic_3D_framework:
                            self.cell_tags and, if the file stores them as
                            $ElementData "e_1"/"e_2", the local reference system
                            self.e_1, self.e_2, self.e_3 (used for the
-                           fibres) -- see axisymmetric_mesh_io.read_axisymmetric_mesh.
+                           fibres) -- see mesh_io.read_mesh.
         mech_params_json : material parameters, see parameters_class.MechParams.
         """
         self.mesh_file = mesh_file
-        mesh_data = read_axisymmetric_mesh(mesh_file, comm)
+        mesh_data = read_mesh(mesh_file, comm)
         self.domain = mesh_data.domain
         self.facet_tag = mesh_data.facet_tag
         self.cell_tags = mesh_data.cell_tags
@@ -351,6 +390,42 @@ class Hyperelastic_3D_framework:
         self.R_u = ufl.inner(ufl.grad(self.v), PK1) * self.dx
 
 
+    @property
+    def output_meta(self):
+        """Metadata for the OutputManager: labels of the components, not axisymmetric."""
+        return {"axes": ["x", "y", "z"], "axisymmetric": False}
+
+    @cached_property
+    def quantities(self):
+        """
+        Standard output quantities as UFL expressions in (x, y, z). Symbolic only:
+        nothing is compiled here, the OutputManager compiles what it is given.
+        """
+        I = ufl.Identity(3)
+        PK1 = ufl.diff(self.psi, self.F)
+        sigma = (1 / self.J) * ufl.dot(PK1, self.F.T)
+        dev = sigma - ufl.tr(sigma) / 3 * I
+        return {
+            "displacement": self.u,
+            "PK1_stress": PK1,
+            "cauchy_stress": sigma,
+            "green_lagrange": 0.5 * (ufl.dot(self.F.T, self.F) - I),
+            "J": self.J,
+            "psi": self.psi,
+            "von_mises": ufl.sqrt(3 / 2 * ufl.inner(dev, dev)),
+            "hydrostatic_pressure": -ufl.tr(sigma) / 3,
+        }
+
+    def volume_integral(self, expr):
+        """UFL form of the integral of expr over the body."""
+        return expr * self.dx
+
+    def surface_integral(self, expr, marker):
+        """UFL form of the integral of expr over the surface of tag `marker`. Needs build_BCs."""
+        if not hasattr(self, "ds"):
+            raise RuntimeError("call build_BCs before surface_integral (self.ds is defined there)")
+        return expr * self.ds(marker)
+
     def build_BCs(self, boundary_conditions, slip_penalty=1e3):
         """
         facet_tag           : dolfinx MeshTags of the boundary facets (from cornea.msh).
@@ -392,7 +467,7 @@ class Hyperelastic_3D_framework:
             elif bc_type == "Pressure":
                 # Nanson: n da = J F^-T N dA ; traction t = -p n  ->  residual term + p J F^-T N . v
                 p = values
-                self.bc_form += p * self.J * ufl.dot(_inplane(self.F_inv.T, N), self.v) * ds
+                self.bc_form += p * self.J * ufl.dot(ufl.dot(self.F_inv.T, N), self.v) * ds
  
             elif bc_type == "Slip":
                 # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
@@ -402,10 +477,10 @@ class Hyperelastic_3D_framework:
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * ds
  
             elif bc_type == "Neumann_follower":
-                self.bc_form += - self.J * ufl.dot(_inplane(self.F_inv.T, self.v), values) * ds
+                self.bc_form += - self.J * ufl.dot(ufl.dot(self.F_inv.T, self.v), ufl.as_vector(values)) * ds
  
             elif bc_type == "Neumann":
-                self.bc_form += - ufl.dot(self.v, values) * ds
+                self.bc_form += - ufl.dot(self.v, ufl.as_vector(values)) * ds
  
             elif bc_type == "Robin":
                 k, u_ref = values

@@ -10,13 +10,16 @@ from typing import TYPE_CHECKING
 _EXPORTS = {
     "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
     "Hyperelastic_3D_framework":  ".hyperelastic_framework",
-    "read_axisymmetric_mesh":  ".mesh_io",
+    "read_mesh":  ".mesh_io",
     "MeshData":                ".mesh_io",
-    "OutputManager":           ".outputs_manager",
-    "available_outputs":       ".outputs_manager",
     "MechParams":              ".parameters_class",
-    "PlotManager":             ".plots_manager",
-    "compare_scalars":         ".plots_manager",
+
+    "OutputManager":           ".Postprocessing_managers.outputs_manager",
+    "point_probe":             ".Postprocessing_managers.output_utils",
+    "average":                 ".Postprocessing_managers.output_utils",
+
+    "PlotManager":             ".Postprocessing_managers.plots_manager",
+    "compare_scalars":         ".Postprocessing_managers.plots_manager",
 }
 
 __all__ = list(_EXPORTS)
@@ -32,7 +35,9 @@ def __getattr__(name):
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
     from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
-    from .mesh_io import read_axisymmetric_mesh, MeshData
-    from .outputs_manager import OutputManager, available_outputs
+    from .mesh_io import read_mesh, MeshData
     from .parameters_class import MechParams
-    from .plots_manager import PlotManager, compare_scalars
+
+    from .Postprocessing_managers.outputs_manager import OutputManager
+    from .Postprocessing_managers.output_utils import point_probe, average
+    from .Postprocessing_managers.plots_manager import PlotManager, compare_scalars
