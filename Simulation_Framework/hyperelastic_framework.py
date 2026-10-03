@@ -383,7 +383,7 @@ class Hyperelastic_3D_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = self.mech_params.strain_energy_density_function(self)
+        self.psi = self.mech_params.strain_energy_density_function(self.domain, self.F)
         PK1 = ufl.diff(self.psi, self.F) # PK1 stress
 
         # Residuals

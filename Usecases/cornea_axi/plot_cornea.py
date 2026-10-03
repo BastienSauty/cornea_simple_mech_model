@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 from Simulation_Framework import PlotManager, compare_scalars
 
-basename = "Usecases/cornea_IOP_Giammarini"
+basename = "Usecases/cornea_axi/cornea_IOP_Giammarini"
 out = f"results/{basename}"
 
 # labels of the case-specific scalars (standard quantities are labelled by the library)

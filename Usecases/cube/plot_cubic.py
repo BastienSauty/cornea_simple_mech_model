@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 from Simulation_Framework import PlotManager
 
-name = "Testing_tools/cubetest"
+name = "Usecases/cube/cubetest"
 out = f"results/{name}"
 
 # labels of the case-specific scalars; "t" is the applied pressure in this run

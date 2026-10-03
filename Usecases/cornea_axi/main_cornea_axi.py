@@ -92,9 +92,9 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
 
 if __name__ == '__main__':
-    name = "Usecases/cornea_IOP_Giammarini"
-    mesh_file = "Usecases/cornea.msh"
-    mech_params_json = "Usecases/mech_params_Giammarini2026.json"
+    name = "Usecases/cornea_axi/cornea_IOP_Giammarini"
+    mesh_file = "Usecases/cornea_axi/cornea.msh"
+    mech_params_json = "Usecases/cornea_axi/mech_params_Giammarini2026.json"
 
     history = run_simulation(name, mesh_file, mech_params_json, cornea_outputs)
 

@@ -24,6 +24,9 @@ import numpy as np
 from dolfinx import fem
 from dolfinx.io import gmsh as gmshio
 
+import itertools
+from pathlib import Path
+
 LRS_NAMES = {
     "e_1": ("e_1", "e1"),
     "e_2": ("e_2", "e2"),
@@ -183,3 +186,101 @@ One reader for both cases, the dimension being inferred from the file:
         f.x.scatter_forward()
 
     return e_1, e_2, e_3
+
+def write_mesh(mesh_file, e_1=None, e_2=None, e_3=None,
+               msh_version=4.1, binary=False, tol=1e-8):
+    """
+    Write the CURRENT GMSH MODEL to `mesh_file` (.msh), with an optional LRS.
+    Serial use only.
+
+    Input: a gmsh model, already meshed (gmsh.model.mesh.generate), with at
+    least one physical group of the top dimension. Triangles, quads, tetrahedra
+    and hexahedra are supported. Only elements belonging to physical groups are
+    written (gmsh default). gmsh.initialize()/finalize() are left to the caller.
+
+    LRS (optional): e_1, e_2 (and e_3, 3D only) are arrays of shape (n_cells, 3),
+    ordered like the top-dimension elements of the model, i.e. as in
+    _top_dim_element_tags(dim). They are stored as ElementData views named
+    "e_1", "e_2", "e_3", which read_mesh accepts.
+      - e_1 and e_2 must be given together.
+      - 2D: e_3 must not be given (read_mesh sets it to (0, 0, 1)); the
+        out-of-plane component of e_1 and e_2 must be zero.
+      - 3D: if e_3 is omitted, read_mesh computes e_1 x e_2.
+    The vectors must be unit and mutually orthogonal within `tol`.
+    """
+    mesh_file = Path(mesh_file)
+    if mesh_file.suffix != ".msh":
+        raise ValueError(f"mesh_file must have a .msh extension, got '{mesh_file.name}'")
+
+    dim = gmsh.model.getDimension()
+    if dim not in (2, 3):
+        raise ValueError(f"model dimension is {dim}, expected 2 or 3")
+    top_tags = _top_dim_element_tags(dim)
+    if top_tags.size == 0:
+        raise ValueError(f"no mesh elements in a physical group of dimension {dim}")
+
+    vectors = _check_lrs(dim, len(top_tags), e_1, e_2, e_3, tol)
+
+    if vectors and binary:
+        raise ValueError("an LRS can only be appended to an ASCII file (binary=False)")
+
+    gmsh.option.setNumber("Mesh.MshFileVersion", msh_version)
+    gmsh.option.setNumber("Mesh.Binary", int(binary))
+    gmsh.write(str(mesh_file))
+
+    # ElementData: 1 string tag (name), 1 real tag (time), 3 integer tags
+    # (time step, number of components, number of elements).
+    with open(mesh_file, "a") as f:
+        for name, values in vectors.items():
+            f.write(f'$ElementData\n1\n"{name}"\n1\n0.0\n3\n0\n3\n{len(top_tags)}\n')
+            for tag, v in zip(top_tags, values):
+                f.write(f"{tag} {v[0]:.17g} {v[1]:.17g} {v[2]:.17g}\n")
+            f.write("$EndElementData\n")
+
+
+def _check_lrs(dim, n_cells, e_1, e_2, e_3, tol):
+    """Validate the LRS arrays; return {name: (n_cells, 3) array} (empty if no LRS)."""
+    if e_1 is None and e_2 is None and e_3 is None:
+        return {}
+    if e_1 is None or e_2 is None:
+        raise ValueError("e_1 and e_2 must be given together")
+    if dim == 2 and e_3 is not None:
+        raise ValueError("e_3 is not accepted in 2D: read_mesh sets it to (0, 0, 1)")
+
+    given = {"e_1": e_1, "e_2": e_2}
+    if e_3 is not None:
+        given["e_3"] = e_3
+
+    vectors = {}
+    for name, v in given.items():
+        v = np.asarray(v, dtype=float)
+        if v.shape != (n_cells, 3):
+            raise ValueError(f"{name} has shape {v.shape}, expected {(n_cells, 3)}")
+        if not np.all(np.isfinite(v)):
+            raise ValueError(f"{name} contains non-finite values")
+        err = np.abs(np.linalg.norm(v, axis=1) - 1.0).max()
+        if err > tol:
+            raise ValueError(f"{name} is not unit norm (max deviation {err:.2e})")
+        if dim == 2 and np.abs(v[:, 2]).max() > tol:
+            raise ValueError(f"{name} has a non-zero out-of-plane component in 2D")
+        vectors[name] = v
+
+    for a, b in itertools.combinations(vectors, 2):
+        err = np.abs(np.einsum("ij,ij->i", vectors[a], vectors[b])).max()
+        if err > tol:
+            raise ValueError(f"{a} and {b} are not orthogonal (max |dot| {err:.2e})")
+    return vectors
+
+def top_cell_centroids(dim):
+    """Centroids of the top-dimension cells, in the order of _top_dim_element_tags."""
+    node_tags, coords, _ = gmsh.model.mesh.getNodes()
+    xyz = np.zeros((int(node_tags.max()) + 1, 3))
+    xyz[node_tags.astype(int)] = coords.reshape(-1, 3)
+    out = []
+    for _, pg in gmsh.model.getPhysicalGroups(dim):
+        for ent in gmsh.model.getEntitiesForPhysicalGroup(dim, pg):
+            types, _, conn = gmsh.model.mesh.getElements(dim, ent)
+            for t, nodes in zip(types, conn):
+                n = gmsh.model.mesh.getElementProperties(t)[3]
+                out.append(xyz[nodes.reshape(-1, n).astype(int)].mean(axis=1))
+    return np.vstack(out)

@@ -10,16 +10,18 @@ from typing import TYPE_CHECKING
 _EXPORTS = {
     "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
     "Hyperelastic_3D_framework":  ".hyperelastic_framework",
-    "read_mesh":  ".mesh_io",
+    "read_mesh":               ".mesh_io",
     "MeshData":                ".mesh_io",
+    "write_mesh":              ".mesh_io",
+    "top_cell_centroids":      ".mesh_io",
     "MechParams":              ".parameters_class",
 
-    "OutputManager":           ".Postprocessing_managers.outputs_manager",
-    "point_probe":             ".Postprocessing_managers.output_utils",
-    "average":                 ".Postprocessing_managers.output_utils",
+    "OutputManager":           ".Postprocessing_tools.outputs_manager",
+    "point_probe":             ".Postprocessing_tools.output_utils",
+    "average":                 ".Postprocessing_tools.output_utils",
 
-    "PlotManager":             ".Postprocessing_managers.plots_manager",
-    "compare_scalars":         ".Postprocessing_managers.plots_manager",
+    "PlotManager":             ".Postprocessing_tools.plots_manager",
+    "compare_scalars":         ".Postprocessing_tools.plots_manager",
 }
 
 __all__ = list(_EXPORTS)
@@ -35,9 +37,9 @@ def __getattr__(name):
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
     from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
-    from .mesh_io import read_mesh, MeshData
+    from .mesh_io import read_mesh, MeshData, top_cell_centroids
     from .parameters_class import MechParams
 
-    from .Postprocessing_managers.outputs_manager import OutputManager
-    from .Postprocessing_managers.output_utils import point_probe, average
-    from .Postprocessing_managers.plots_manager import PlotManager, compare_scalars
+    from .Postprocessing_tools.outputs_manager import OutputManager
+    from .Postprocessing_tools.output_utils import point_probe, average
+    from .Postprocessing_tools.plots_manager import PlotManager, compare_scalars
