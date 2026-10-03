@@ -49,4 +49,4 @@ def make_cube(mesh_file, p=CubeParams(), simplex=False):
 
 
 if __name__ == "__main__":
-    make_cube("Meshes/cube_hexa.msh")
+    make_cube("Meshing_tools/Meshes/cube_hexa.msh")

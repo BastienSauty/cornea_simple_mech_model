@@ -27,8 +27,8 @@ class Cornea3DParams:
     size: float = 0.17      # uniform element size of the reference cylinder
 
     structured: bool = True  # hexahedra (Merlini assembly) or tetrahedra
-    n_s: int = 16            # elements per side of the central square (n_rho = n_s / 2)
-    n_z: int = 3             # elements through the thickness
+    n_s: int = 4            # elements per side of the central square (n_rho = n_s / 2)
+    n_z: int = 2             # elements through the thickness
 
 
 def biconic(x, y, R1, R2, Q1, Q2):
