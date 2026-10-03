@@ -333,7 +333,7 @@ class Hyperelastic_3D_framework:
         self.v = ufl.TestFunction(self.V_u) # test function - shape function in the FEM
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
-        self.mech_params = self.mech_params = MechParams.from_json(mech_params_json)
+        self.mech_params = MechParams.from_json(mech_params_json)
         
         # Anisotropic contribution. The fibre directions are fields, one unit vector
         # per cell, transported from the mesh's local reference system (see
@@ -383,7 +383,7 @@ class Hyperelastic_3D_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = self.mech_params.strain_energy_density_function(self.domain, self.F)
+        self.psi = self.mech_params.strain_energy_density_function(self)
         PK1 = ufl.diff(self.psi, self.F) # PK1 stress
 
         # Residuals

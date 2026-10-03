@@ -5,8 +5,9 @@ from dataclasses import dataclass
 import gmsh
 import numpy as np
 
+from functools import partial
 from Simulation_Framework import write_mesh
-from mesh_generation import mapped_mesh, push_vector
+from mesh_generation import mapped_mesh, push_vector, reference_block
 
 
 @dataclass
@@ -40,11 +41,12 @@ def make_cube(mesh_file, p=CubeParams(), simplex=False):
     gmsh.option.setNumber("General.Terminal", 0)
     try:
         gmsh.model.add("cube")
-        lrs = mapped_mesh(cube_map(p), (p.n_x, p.n_y, p.n_z), frame, PHYSICAL, simplex)
+        lrs = mapped_mesh(cube_map(p), partial(reference_block, (p.n_x, p.n_y, p.n_z), simplex),
+                    frame, PHYSICAL)
         write_mesh(mesh_file, **lrs)
     finally:
         gmsh.finalize()
 
 
 if __name__ == "__main__":
-    make_cube("cube_hexa.msh")
+    make_cube("Meshes/cube_hexa.msh")

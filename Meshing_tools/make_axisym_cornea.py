@@ -4,12 +4,13 @@ from dataclasses import dataclass
 
 import gmsh
 import numpy as np
+from functools import partial
 from scipy.interpolate import CubicSpline
 from scipy.optimize import brentq
 
 from Simulation_Framework import write_mesh
 from coons import coons_map, segment
-from mesh_generation import mapped_mesh, push_vector, push_normal
+from mesh_generation import mapped_mesh, push_vector, push_normal, reference_block
 
 
 @dataclass
@@ -77,12 +78,13 @@ def make_cornea(mesh_file, p=CorneaParams(), simplex=False):
     gmsh.initialize()
     gmsh.option.setNumber("General.Terminal", 0)
     try:
-        gmsh.model.add("cornea")
-        lrs = mapped_mesh(cornea_map(p), (p.n_u, p.n_v), frame, PHYSICAL, simplex)
+        gmsh.model.add("cornea")      
+        lrs = mapped_mesh(cornea_map(p), partial(reference_block, (p.n_u, p.n_v), simplex),
+                          frame, PHYSICAL)
         write_mesh(mesh_file, **lrs)
     finally:
         gmsh.finalize()
 
 
 if __name__ == "__main__":
-    make_cornea("Meshing_tools/cornea.msh")
+    make_cornea("Meshing_tools/Meshes/cornea.msh")

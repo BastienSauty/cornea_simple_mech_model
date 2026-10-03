@@ -45,8 +45,48 @@ def reference_block(n_nodes, simplex=False):
                 faces[f"{AXES[a]}{int(round(com[a]))}"] = f
     if len(faces) != 2 * d:
         raise RuntimeError(f"found {len(faces)} faces ({sorted(faces)}), expected {2 * d}")
-        
-    return domain, faces
+
+    return d, domain, faces
+
+def reference_cylinder(radius, height, size):
+    """Tetrahedral cylinder of axis z, from z = 0 to z = height, uniform element size.
+    Returns (3, domain, faces) with faces "bottom" (z=0), "top" (z=height), "lateral"."""
+    domain = gmsh.model.occ.addCylinder(0, 0, 0, 0, 0, height, radius)
+    gmsh.model.occ.synchronize()
+    for opt in ("Mesh.MeshSizeFromPoints", "Mesh.MeshSizeFromCurvature",
+                "Mesh.MeshSizeExtendFromBoundary"):
+        gmsh.option.setNumber(opt, 0)
+    gmsh.option.setNumber("Mesh.MeshSizeMin", size)
+    gmsh.option.setNumber("Mesh.MeshSizeMax", size)
+    gmsh.model.mesh.generate(3)
+
+    faces = {}
+    for _, f in gmsh.model.getEntities(2):
+        z = gmsh.model.occ.getCenterOfMass(2, f)[2]
+        if abs(z) < 1e-6:
+            faces["bottom"] = f
+        elif abs(z - height) < 1e-6:
+            faces["top"] = f
+        else:
+            faces["lateral"] = f
+    if len(faces) != 3:
+        raise RuntimeError(f"found faces {sorted(faces)}, expected bottom, top, lateral")
+    return 3, domain, faces
+
+def discrete_mesh(dim, nodes, cells, cell_type, faces, face_type):
+    """Load a mesh given as arrays into the current gmsh model as ONE discrete entity of
+    dimension `dim`, with one discrete entity per boundary face group. No gmsh meshing.
+    nodes (n, 3); cells (m, k) and faces {key: (q, k')} are 0-based node indices;
+    cell_type / face_type are gmsh element types (5 hexa, 3 quad, 4 tet, 2 triangle).
+    Returns (dim, domain, {key: entity tag}), the contract of the reference builders."""
+    face_tags = {k: gmsh.model.addDiscreteEntity(dim - 1) for k in faces}
+    domain = gmsh.model.addDiscreteEntity(dim, -1, list(face_tags.values()))
+    gmsh.model.mesh.addNodes(dim, domain, np.arange(1, len(nodes) + 1),
+                             np.asarray(nodes, float).ravel())
+    gmsh.model.mesh.addElementsByType(domain, cell_type, [], (np.asarray(cells) + 1).ravel())
+    for k, f in faces.items():
+        gmsh.model.mesh.addElementsByType(face_tags[k], face_type, [], (np.asarray(f) + 1).ravel())
+    return dim, domain, face_tags
 
 
 def deform(phi, d):
@@ -104,15 +144,13 @@ def push_forward_frame(phi, frame, ref_centroids, def_centroids, tol=1e-10, max_
     return out
 
 
-def mapped_mesh(phi, n_nodes, frame, physical, simplex=False):
-    """Mesh the reference block, add physical groups, deform by phi, return the LRS dict.
-    physical = {"domain": (tag, name), "u0": (tag, name), ...}; faces not listed are
-    not written."""
+def mapped_mesh(phi, reference, frame, physical):
+    """Build the reference mesh with `reference()`, add physical groups, deform by phi,
+    return the LRS dict. physical = {"domain": (tag, name), <face key>: (tag, name), ...};
+    faces not listed are not written."""
     if "domain" not in physical:
         raise ValueError('physical must contain a "domain" entry')
-    d = len(n_nodes)
-    domain, faces = reference_block(n_nodes, simplex)
-    
+    d, domain, faces = reference()
     for key, (tag, name) in physical.items():
         if key == "domain":
             gmsh.model.addPhysicalGroup(d, [domain], tag, name)
