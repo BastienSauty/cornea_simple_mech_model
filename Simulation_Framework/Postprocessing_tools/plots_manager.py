@@ -1,33 +1,30 @@
-# Post-processing plots for results written by outputs.OutputManager.
+# Post-processing plots for results written by OutputManager.
 #
-# Reads <basename>_scalars.csv and <basename>.xdmf (+ .h5) directly, so it only
-# needs numpy, matplotlib and h5py: no dolfinx, no MPI. Plotting scripts can run
-# on a laptop, on results copied from a cluster, while or after the solve.
+# Reads <basename>_scalars.csv, <basename>_meta.json and <basename>.xdmf (+ .h5) through
+# results_reader, so it only needs numpy, matplotlib and h5py: no dolfinx, no MPI.
+#
+# Scope: scalar histories (any run), and fields / profiles on 2D meshes (planar or
+# axisymmetric). For 3D results open the .xdmf file in ParaView.
 #
 # Usage:
-#   from plots import PlotManager, compare_scalars
-#   pm = PlotManager("results/cornea_IOP")
+#   pm = PlotManager("results/run", labels={"apex_uz": r"apex $u_z$"})
 #   pm.info()
-#   pm.plot_scalars(["apex_uz_anterior", "apex_uz_posterior"])
-#   pm.plot_scalars("limbus_reaction_z", x="apex_uz_anterior")
-#   pm.plot_field("von_mises", deformed=True, mirror=True)
-#   pm.plot_field("cauchy_stress", component="tt", symmetric=True)
-#   pm.plot_profile("green_lagrange", component="rr")       # along the axis r = 0
+#   pm.plot_scalars("apex_uz", save="apex.png")                  # stand-alone figure, saved
+#   pm.plot_scalars("force", x="apex_uz", ax=ax)                 # composed into your own figure
+#   pm.plot_field("von_mises", deformed=True, mirror=True, save="vm.png")
+#   pm.plot_field("cauchy_stress", component="tt", symmetric=True, save="stt.png")
+#   pm.plot_profile("green_lagrange", component="zz", save="Ezz_axis.png")
 #   pm.animate_field("von_mises", "vm.gif", deformed=True)
-#   plt.show()
 #
-# Every plot method takes an optional `ax` and returns it, so plots can be
-# composed into your own figures. Nothing calls plt.show() for you.
+# Every plot method takes an optional `ax` and returns it. With `save=<file>` the method
+# creates its own figure, saves it and closes it (do not combine with `ax`). Nothing
+# calls plt.show() for you.
 #
-# Quick look from the command line:  python plots.py results/cornea_IOP
+# Components are named with the coordinate labels of the run (<basename>_meta.json):
+# 'r', 'z' and 'tt' (hoop) for an axisymmetric run, 'x', 'y', 'xy', ... otherwise.
 
-import csv
-import sys
-import warnings
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import h5py
 import matplotlib.pyplot as plt
 import matplotlib.tri as mtri
 import numpy as np
@@ -35,15 +32,13 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
-# Pretty axis labels for the names in outputs.FIELDS / outputs.SCALARS.
-# Unknown names fall back to the raw name, so new outputs work without edits here.
-LABELS = {
+from .results_reader import XDMFResults, extract_component, read_meta, read_scalars
+
+# Labels of the standard quantities (framework.quantities) and of generic scalars.
+# Case-specific names are given to PlotManager(labels=...); unknown names fall back to
+# the raw name.
+DEFAULT_LABELS = {
     "t": "t",
-    "apex_uz_anterior": r"anterior apex $u_z$",
-    "apex_uz_posterior": r"posterior apex $u_z$",
-    "central_thickness": "central thickness",
-    "limbus_reaction_r": r"limbus reaction $R_r$",
-    "limbus_reaction_z": r"limbus reaction $R_z$",
     "volume": "volume",
     "strain_energy": "strain energy",
     "displacement": r"$u$",
@@ -57,25 +52,7 @@ LABELS = {
     "hydrostatic_pressure": r"$p$",
 }
 
-# Components, (r, z, theta) ordering as in outputs.py; tensors are flattened row-major.
-_VECTOR = {"r": 0, "z": 1}
-_TENSOR3 = {"rr": 0, "rz": 1, "rt": 2, "zr": 3, "zz": 4, "zt": 5, "tr": 6, "tz": 7, "tt": 8}
-_TENSOR2 = {"rr": 0, "rz": 1, "zr": 2, "zz": 3}
 
-
-def _label(name, component=None):
-    base = LABELS.get(name, name)
-    if component is None:
-        return base
-    if component == "magnitude":
-        return f"|{base}|"
-    sub = component.replace("t", r"\theta")
-    return f"{base} [{sub}]" if not base.startswith("$") else base[:-1] + f"_{{{sub}}}$"
-
-
-# --------------------------------------------------------------------------- #
-# XDMF / HDF5 reader (layout written by dolfinx io.XDMFFile)
-# --------------------------------------------------------------------------- #
 def _to_triangles(cell_type, cells):
     """Triangles for matplotlib + index of the original cell of each triangle."""
     ct = cell_type.lower()
@@ -88,109 +65,77 @@ def _to_triangles(cell_type, cells):
     raise ValueError(f"unsupported cell type {cell_type!r} for 2D plotting")
 
 
-class _XDMFResults:
-    def __init__(self, path):
-        self.path = Path(path)
-        domain = ET.parse(self.path).getroot().find("Domain")
-        grids = domain.findall("Grid")
-
-        # the mesh is the first uniform grid (write_mesh is called first)
-        mesh = next(g for g in grids
-                    if g.get("GridType", "Uniform") == "Uniform" and g.find("Topology") is not None)
-        self.x = self._read(mesh.find("Geometry/DataItem"))[:, :2]
-        topo = mesh.find("Topology")
-        cells = self._read(topo.find("DataItem")).astype(np.int64)
-        self.triangles, self.tri_cell = _to_triangles(topo.get("TopologyType"), cells)
-        self.num_cells = len(cells)
-
-        # time series: name -> {"center", "times", "items"}
-        self.fields = {}
-        for g in grids:
-            if g.get("GridType") != "Collection":
-                continue
-            for step in g.findall("Grid"):
-                time = step.find("Time")
-                t = float(time.get("Value")) if time is not None else 0.0
-                for att in step.findall("Attribute"):
-                    e = self.fields.setdefault(att.get("Name"),
-                                               {"center": att.get("Center"), "times": [], "items": []})
-                    e["times"].append(t)
-                    e["items"].append(att.find("DataItem"))
-        for e in self.fields.values():
-            e["times"] = np.array(e["times"])
-
-    def _read(self, item):
-        dims = tuple(int(d) for d in item.get("Dimensions").split())
-        text = item.text.strip()
-        if item.get("Format", "XML") == "HDF":
-            fname, dset = text.rsplit(":", 1)
-            with h5py.File(self.path.parent / fname, "r") as h5:
-                return np.asarray(h5[dset]).reshape(dims)
-        return np.array(text.split(), dtype=float).reshape(dims)
-
-    def step_index(self, name, t):
-        times = self.fields[name]["times"]
-        if t is None:
-            return len(times) - 1
-        i = int(np.argmin(np.abs(times - t)))
-        if not np.isclose(times[i], t, rtol=1e-8, atol=1e-12):
-            warnings.warn(f"{name}: no output at t={t:g}, using nearest t={times[i]:g}")
-        return i
-
-    def values(self, name, t=None):
-        """(values of shape (n, ncomp), center 'Node' or 'Cell', actual time)."""
-        e = self.fields[name]
-        i = self.step_index(name, t)
-        v = self._read(e["items"][i])
-        return v.reshape(len(v), -1), e["center"], e["times"][i]
+def _axes(ax, save, figsize):
+    """The axes to draw on: the given one, or a new stand-alone figure."""
+    if ax is not None:
+        if save is not None:
+            raise ValueError("save is for stand-alone figures: do not pass ax, "
+                             "or save the figure yourself")
+        return ax
+    return plt.subplots(figsize=figsize or (7, 5))[1]
 
 
-def _component(values, name, component):
-    n = values.shape[1]
-    if n == 1:
-        if component not in (None,):
-            raise ValueError(f"{name} is scalar, no component {component!r}")
-        return values[:, 0]
-    if n in (2, 3):                                   # vectors (dolfinx pads 2D to 3)
-        if component in (None, "magnitude"):
-            return np.linalg.norm(values[:, :2], axis=1)
-        if component not in _VECTOR:
-            raise ValueError(f"{name}: component must be one of {list(_VECTOR)} or 'magnitude'")
-        return values[:, _VECTOR[component]]
-    table = _TENSOR3 if n == 9 else _TENSOR2 if n == 4 else None
-    if table is None:
-        raise ValueError(f"{name}: unexpected number of components {n}")
-    if component not in table:
-        raise ValueError(f"{name} is a tensor, choose component from {list(table)}")
-    return values[:, table[component]]
+def _finish(ax, save, dpi=200):
+    """Save and close the figure if save was given."""
+    if save is not None:
+        fig = ax.figure
+        fig.tight_layout()
+        fig.savefig(save, dpi=dpi)
+        plt.close(fig)
 
 
-# --------------------------------------------------------------------------- #
-# Plot manager
-# --------------------------------------------------------------------------- #
 class PlotManager:
     """Plots for one run, i.e. one `basename` given to OutputManager."""
 
-    def __init__(self, basename, label=None):
+    def __init__(self, basename, label=None, labels=None, meta=None):
+        """
+        label  : name of the run in legends (default: the file name)
+        labels : {output name: matplotlib label}, merged with DEFAULT_LABELS
+        meta   : overrides the content of <basename>_meta.json (or of its defaults),
+                 e.g. {"axes": ("r", "z", "t"), "axisymmetric": True}
+        """
         base = Path(basename)
         self.label = label or base.name
-        self.scalars = {}
-        self._res = None
+        self.labels = {**DEFAULT_LABELS, **(labels or {})}
+        self.scalars = read_scalars(base)
 
-        csv_path = Path(f"{base}_scalars.csv")
-        if csv_path.exists():
-            with open(csv_path, newline="") as f:
-                reader = csv.reader(f)
-                header = next(reader)
-                rows = np.array([[float(v) for v in r] for r in reader if r]).reshape(-1, len(header))
-            self.scalars = {n: rows[:, i] for i, n in enumerate(header)}
-
-        xdmf_path = base.with_suffix(".xdmf")
-        if xdmf_path.exists():
-            self._res = _XDMFResults(xdmf_path)
-
+        xdmf_path = Path(f"{base}.xdmf")
+        self._res = XDMFResults(xdmf_path) if xdmf_path.exists() else None
         if not self.scalars and self._res is None:
-            raise FileNotFoundError(f"neither {csv_path} nor {xdmf_path} exists")
+            raise FileNotFoundError(f"neither {base}_scalars.csv nor {xdmf_path} exists")
+
+        self.meta = {**read_meta(base, self._res.dim if self._res else None), **(meta or {})}
+        self.axes = tuple(self.meta["axes"])
+        self.axisymmetric = bool(self.meta["axisymmetric"])
+        self.gdim = self.meta["gdim"]
+
+    # ---- labels and checks ------------------------------------------------ #
+    def _lab(self, name, component=None):
+        base = self.labels.get(name, name)
+        if component is None:
+            return base
+        if component == "magnitude":
+            return f"|{base}|"
+        sub = component.replace("t", r"\theta") if "t" in self.axes else component
+        return f"{base} [{sub}]" if not base.startswith("$") else base[:-1] + f"_{{{sub}}}$"
+
+    def _need_field(self, name):
+        if self._res is None or name not in self._res.fields:
+            raise KeyError(f"field {name!r} not in results; available: {self.field_names}")
+
+    def _need_2d(self):
+        if self.gdim != 2:
+            raise NotImplementedError("field plots and profiles are 2D only: "
+                                      "open the .xdmf file in ParaView for 3D results")
+
+    @property
+    def _triangles(self):
+        if not hasattr(self, "_tri_cache"):
+            self._tri_cache = _to_triangles(self._res.cell_type, self._res.cells)
+        return self._tri_cache
+
+    def _component(self, raw, name, component):
+        return extract_component(raw, name, component, self.axes, self.gdim)
 
     # ---- inspection ------------------------------------------------------- #
     @property
@@ -203,6 +148,8 @@ class PlotManager:
 
     def info(self):
         print(f"Run '{self.label}'")
+        kind = "axisymmetric" if self.axisymmetric else "Cartesian"
+        print(f"  {self.gdim}D, {kind}, coordinates {self.axes}")
         if self.scalars:
             n = len(next(iter(self.scalars.values())))
             print(f"  scalars ({n} rows): {[k for k in self.scalars if k != 't']}")
@@ -212,43 +159,42 @@ class PlotManager:
             print(f"  field {name:22s} {e['center']:4s}  {len(ts)} steps, "
                   f"t in [{ts.min():g}, {ts.max():g}]")
 
-    def _need_field(self, name):
-        if self._res is None or name not in self._res.fields:
-            raise KeyError(f"field {name!r} not in results; available: {self.field_names}")
-
     # ---- scalar histories ------------------------------------------------- #
-    def plot_scalars(self, y, x="t", ax=None, label=None, **plot_kw):
+    def plot_scalars(self, y, x="t", ax=None, label=None, save=None, figsize=None, **plot_kw):
         """Plot one or several scalar outputs against `x` (t or another scalar)."""
         names = [y] if isinstance(y, str) else list(y)
         for n in [x, *names]:
             if n not in self.scalars:
                 raise KeyError(f"scalar {n!r} not in results; available: {list(self.scalars)}")
-        if ax is None:
-            ax = plt.subplots()[1]
+        ax = _axes(ax, save, figsize)
         plot_kw.setdefault("marker", "o")
         plot_kw.setdefault("markersize", 3)
         for n in names:
             if label is not None:
-                lab = label if len(names) == 1 else f"{label}: {_label(n)}"
+                lab = label if len(names) == 1 else f"{label}: {self._lab(n)}"
             else:
-                lab = _label(n)
+                lab = self._lab(n)
             ax.plot(self.scalars[x], self.scalars[n], label=lab, **plot_kw)
-        ax.set_xlabel(_label(x))
-        ax.set_ylabel(_label(names[0]) if len(names) == 1 else "")
+        ax.set_xlabel(self._lab(x))
+        ax.set_ylabel(self._lab(names[0]) if len(names) == 1 else "")
         if len(names) > 1 or label is not None:
             ax.legend()
         ax.grid(True, alpha=0.3)
+        _finish(ax, save)
         return ax
 
-    # ---- fields on the (r, z) section ------------------------------------- #
+    # ---- fields on a 2D mesh ---------------------------------------------- #
     def _field_on_mesh(self, name, component, t, deformed, scale, mirror):
         """Triangulation, values, 'Node'/'Cell', actual t."""
+        self._need_2d()
         self._need_field(name)
+        if mirror and not self.axisymmetric:
+            raise ValueError("mirror is only meaningful for an axisymmetric run")
         res = self._res
         raw, center, t_act = res.values(name, t)
-        vals = _component(raw, name, component)
+        vals = self._component(raw, name, component)
 
-        xy = res.x.copy()
+        xy = res.x[:, :2].copy()
         if deformed:
             self._need_field("displacement")
             u, uc, _ = res.values("displacement", t_act)
@@ -256,9 +202,9 @@ class PlotManager:
                 raise ValueError("displacement is not nodal on the mesh geometry; cannot deform")
             xy = xy + scale * u[:, :2]
 
-        tris = res.triangles
+        tris, tri_cell = self._triangles
         if center == "Cell":
-            vals = vals[res.tri_cell]                 # one value per plotted triangle
+            vals = vals[tri_cell]                     # one value per plotted triangle
         elif len(vals) != len(xy):
             raise ValueError(f"{name}: {len(vals)} nodal values for {len(xy)} mesh nodes")
 
@@ -272,21 +218,22 @@ class PlotManager:
 
     def plot_field(self, name, component=None, t=None, deformed=False, scale=1.0,
                    mirror=False, show_mesh=False, symmetric=False, cmap=None,
-                   vmin=None, vmax=None, colorbar=True, ax=None, title=None):
+                   vmin=None, vmax=None, colorbar=True, ax=None, title=None,
+                   save=None, figsize=None):
         """
-        Colour map of a field at time t (None = last step) on the (r, z) section.
+        Colour map of a field at time t (None = last step) on a 2D mesh.
 
-        component : vectors 'r', 'z', 'magnitude' (default); tensors 'rr', 'zz',
-                    'tt' (hoop), 'rz', ...; scalars None.
-        deformed  : draw on the deformed configuration (needs the 'displacement'
-                    field in the file), displacement multiplied by `scale`.
-        mirror    : also draw the r < 0 half.
+        component : vectors: an axis label ('r', 'z', 'x', ...) or 'magnitude' (default);
+                    tensors: two labels ('rr', 'zz', 'tt' hoop, 'rz', 'xy', ...); scalars None.
+        deformed  : draw on the deformed configuration (needs the 'displacement' field in
+                    the file), displacement multiplied by `scale`.
+        mirror    : also draw the r < 0 half (axisymmetric runs).
         symmetric : colour range symmetric about 0 with a diverging colormap
                     (useful for signed stresses).
+        save      : file name; creates a stand-alone figure, saves it and closes it.
         """
         tri, vals, center, t_act = self._field_on_mesh(name, component, t, deformed, scale, mirror)
-        if ax is None:
-            ax = plt.subplots()[1]
+        ax = _axes(ax, save, figsize)
         if symmetric and vmin is None and vmax is None:
             m = np.nanmax(np.abs(vals))
             vmin, vmax = -m, m
@@ -300,11 +247,12 @@ class PlotManager:
             ax.triplot(tri, color="k", lw=0.2, alpha=0.4)
 
         ax.set_aspect("equal")
-        ax.set_xlabel("r")
-        ax.set_ylabel("z")
-        ax.set_title(title or f"{_label(name, component)}   t = {t_act:g}")
+        ax.set_xlabel(self.axes[0])
+        ax.set_ylabel(self.axes[1])
+        ax.set_title(title or f"{self._lab(name, component)}   t = {t_act:g}")
         if colorbar:
             ax.figure.colorbar(pc, ax=ax, shrink=0.8)
+        _finish(ax, save)
         return ax
 
     # ---- line profiles ---------------------------------------------------- #
@@ -312,66 +260,73 @@ class PlotManager:
         """Reference-mesh triangulation and point locator, built once."""
         if not hasattr(self, "_ref_tri"):
             res = self._res
-            self._ref_tri = mtri.Triangulation(res.x[:, 0], res.x[:, 1], res.triangles)
+            self._ref_tri = mtri.Triangulation(res.x[:, 0], res.x[:, 1], self._triangles[0])
             self._ref_finder = self._ref_tri.get_trifinder()
         return self._ref_tri, self._ref_finder
 
     def sample(self, name, points, component=None, t=None):
         """
-        Values of a field at reference points (array (n, 2) of (r, z)); NaN outside
-        the mesh. DG0 fields give the value of the containing cell (piecewise
-        constant), nodal fields are interpolated linearly. Returns (values, actual t).
+        Values of a field at reference points (array (n, 2)); NaN outside the mesh.
+        DG0 fields give the value of the containing cell (piecewise constant), nodal
+        fields are interpolated linearly. Returns (values, actual t).
         """
+        self._need_2d()
         self._need_field(name)
         res = self._res
         raw, center, t_act = res.values(name, t)
-        vals = _component(raw, name, component)
+        vals = self._component(raw, name, component)
         pts = np.asarray(points, dtype=float)
         tri, finder = self._trifinder()
         if center == "Cell":
             idx = finder(pts[:, 0], pts[:, 1])
             out = np.full(len(pts), np.nan)
             ok = idx >= 0
-            out[ok] = vals[res.tri_cell[idx[ok]]]
+            out[ok] = vals[self._triangles[1][idx[ok]]]
         else:
             interp = mtri.LinearTriInterpolator(tri, vals, trifinder=finder)
             out = np.ma.filled(interp(pts[:, 0], pts[:, 1]).astype(float), np.nan)
         return out, t_act
 
     def _axis_line(self, n):
-        """Points along the symmetry axis r = 0, between the lowest and highest axis nodes."""
+        """Points along the symmetry axis (first coordinate = 0), lowest to highest axis node."""
         x = self._res.x
-        extent = np.ptp(x, axis=0).max()
+        extent = np.ptp(x[:, :2], axis=0).max()
         on_axis = np.isclose(x[:, 0], 0.0, atol=1e-10 * extent)
         if not on_axis.any():
-            raise ValueError("no mesh node on r = 0; pass start and end explicitly")
+            raise ValueError(f"no mesh node on {self.axes[0]} = 0; pass start and end explicitly")
         eps = 1e-9 * extent                           # stay just inside the mesh
         z = np.linspace(x[on_axis, 1].min() + eps, x[on_axis, 1].max() - eps, n)
         return np.c_[np.full(n, eps), z]
 
     def plot_profile(self, name, component=None, t=None, start=None, end=None, n=400,
-                     x_axis="z", deformed=False, ax=None, label=None, **plot_kw):
+                     x_axis=None, deformed=False, ax=None, label=None,
+                     save=None, figsize=None, **plot_kw):
         """
         Plot a field along a straight line of material points.
 
-        start, end : (r, z) end points in the reference configuration. Default:
-                     the symmetry axis r = 0, from posterior to anterior apex.
+        start, end : end points in the reference configuration. Default (axisymmetric
+                     runs only): the symmetry axis, from lowest to highest node.
         t          : a time, a list of times, or "all" (one curve per step).
                      Default: last step.
-        x_axis     : abscissa, "z", "r" or "s" (distance from start).
+        x_axis     : abscissa, an axis label or "s" (distance from start).
+                     Default: the second coordinate.
         deformed   : abscissa in the deformed configuration (x + u), so the curve
                      follows the material line as it moves. Needs 'displacement'.
         """
+        self._need_2d()
         self._need_field(name)
+        x_axis = x_axis or self.axes[1]
+        if x_axis not in (self.axes[0], self.axes[1], "s"):
+            raise ValueError(f"x_axis must be '{self.axes[0]}', '{self.axes[1]}' or 's'")
         if start is None and end is None:
+            if not self.axisymmetric:
+                raise ValueError("give start and end (this run has no symmetry axis)")
             pts = self._axis_line(n)
         elif start is None or end is None:
-            raise ValueError("give both start and end, or neither (axis r = 0)")
+            raise ValueError("give both start and end, or neither")
         else:
             s = np.linspace(0.0, 1.0, n)[:, None]
             pts = (1 - s) * np.asarray(start, float) + s * np.asarray(end, float)
-        if x_axis not in ("r", "z", "s"):
-            raise ValueError("x_axis must be 'r', 'z' or 's'")
 
         if t is None:
             times = [None]
@@ -380,8 +335,7 @@ class PlotManager:
         else:
             times = list(np.atleast_1d(t))
 
-        if ax is None:
-            ax = plt.subplots()[1]
+        ax = _axes(ax, save, figsize)
         cmap = plt.get_cmap("viridis")
         many = len(times) > 8
         t_actual = []
@@ -390,13 +344,13 @@ class PlotManager:
             t_actual.append(t_act)
             xy = pts
             if deformed:
-                ur, _ = self.sample("displacement", pts, "r", t_act)
-                uz, _ = self.sample("displacement", pts, "z", t_act)
-                xy = pts + np.c_[ur, uz]
+                u0, _ = self.sample("displacement", pts, self.axes[0], t_act)
+                u1, _ = self.sample("displacement", pts, self.axes[1], t_act)
+                xy = pts + np.c_[u0, u1]
             if x_axis == "s":
                 xs = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(xy, axis=0), axis=1))]
             else:
-                xs = xy[:, 0 if x_axis == "r" else 1]
+                xs = xy[:, self.axes.index(x_axis)]
 
             kw = dict(plot_kw)
             if len(times) > 1:
@@ -410,17 +364,19 @@ class PlotManager:
 
         conf = "deformed" if deformed else "reference"
         ax.set_xlabel(f"{x_axis} ({conf})")
-        ax.set_ylabel(_label(name, component))
+        ax.set_ylabel(self._lab(name, component))
         if len(times) == 1:
-            ax.set_title(f"{_label(name, component)}   t = {t_actual[0]:g}")
+            ax.set_title(f"{self._lab(name, component)}   t = {t_actual[0]:g}")
         if many:
             sm = ScalarMappable(Normalize(min(t_actual), max(t_actual)), cmap)
             ax.figure.colorbar(sm, ax=ax, label="t")
         elif len(times) > 1 or label is not None:
             ax.legend()
         ax.grid(True, alpha=0.3)
+        _finish(ax, save)
         return ax
 
+    # ---- animation -------------------------------------------------------- #
     def animate_field(self, name, filename, component=None, fps=10, deformed=False,
                       scale=1.0, mirror=False, symmetric=False, **plot_kw):
         """Animate a field over all its time steps; .gif via Pillow, .mp4 needs ffmpeg."""
@@ -467,22 +423,19 @@ def compare_scalars(managers, y, x="t", ax=None, **plot_kw):
     return ax
 
 
-# --------------------------------------------------------------------------- #
-# Quick look:  python plots.py results/cornea_IOP
-# --------------------------------------------------------------------------- #
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit("usage: python plots.py <basename>")
-    pm = PlotManager(sys.argv[1])
+def quick_look(basename):
+    """One panel per scalar output of a run. Call plt.show() afterwards."""
+    pm = PlotManager(basename)
     pm.info()
     names = [n for n in pm.scalars if n != "t"]
-    if names:
-        cols = min(3, len(names))
-        rows = -(-len(names) // cols)
-        fig, axes = plt.subplots(rows, cols, figsize=(4.5 * cols, 3.5 * rows), squeeze=False)
-        for ax, n in zip(axes.flat, names):
-            pm.plot_scalars(n, ax=ax)
-        for ax in axes.flat[len(names):]:
-            ax.set_visible(False)
-        fig.tight_layout()
-    plt.show()
+    if not names:
+        return pm
+    cols = min(3, len(names))
+    rows = -(-len(names) // cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(4.5 * cols, 3.5 * rows), squeeze=False)
+    for ax, n in zip(axes.flat, names):
+        pm.plot_scalars(n, ax=ax)
+    for ax in axes.flat[len(names):]:
+        ax.set_visible(False)
+    fig.tight_layout()
+    return pm

@@ -8,14 +8,20 @@ import importlib
 from typing import TYPE_CHECKING
 
 _EXPORTS = {
-    "Hyperelastic_framework":  ".mechanical_axisymmetric_framework",
-    "read_axisymmetric_mesh":  ".axisymmetric_mesh_io",
-    "MeshData":                ".axisymmetric_mesh_io",
-    "OutputManager":           ".outputs_manager",
-    "available_outputs":       ".outputs_manager",
+    "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
+    "Hyperelastic_3D_framework":  ".hyperelastic_framework",
+    "read_mesh":               ".mesh_io",
+    "MeshData":                ".mesh_io",
+    "write_mesh":              ".mesh_io",
+    "top_cell_centroids":      ".mesh_io",
     "MechParams":              ".parameters_class",
-    "PlotManager":             ".plots_manager",
-    "compare_scalars":         ".plots_manager",
+
+    "OutputManager":           ".Postprocessing_tools.outputs_manager",
+    "point_probe":             ".Postprocessing_tools.output_utils",
+    "average":                 ".Postprocessing_tools.output_utils",
+
+    "PlotManager":             ".Postprocessing_tools.plots_manager",
+    "compare_scalars":         ".Postprocessing_tools.plots_manager",
 }
 
 __all__ = list(_EXPORTS)
@@ -30,8 +36,10 @@ def __getattr__(name):
 
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
-    from .mechanical_axisymmetric_framework import Hyperelastic_framework
-    from .axisymmetric_mesh_io import read_axisymmetric_mesh, MeshData
-    from .outputs_manager import OutputManager, available_outputs
+    from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
+    from .mesh_io import read_mesh, MeshData, top_cell_centroids
     from .parameters_class import MechParams
-    from .plots_manager import PlotManager, compare_scalars
+
+    from .Postprocessing_tools.outputs_manager import OutputManager
+    from .Postprocessing_tools.output_utils import point_probe, average
+    from .Postprocessing_tools.plots_manager import PlotManager, compare_scalars
