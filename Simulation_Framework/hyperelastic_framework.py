@@ -4,7 +4,7 @@
 # Different classes are built in order to run several types of simulation. 
 # The geometry is always assumed to be axisymetrical. Single material
 
-from .parameters_class import MechParams
+from .parameters_class import HyperelasticMaterial
 from .mesh_io import read_mesh
 from .Postprocessing_tools.log_utils import log
 
@@ -66,7 +66,7 @@ class Hyperelastic_axisymmetric_framework:
                            $ElementData "e_1"/"e_2", the local reference system
                            self.e_1, self.e_2, self.e83 (used for the
                            fibres) -- see mesh_io.read_mesh.
-        mech_params_json : material parameters, see parameters_class.MechParams.
+        mech_params_json : material parameters, see parameters_class.HyperelasticMaterial.
         """
         self.mesh_file = mesh_file
         mesh_data = read_mesh(mesh_file, comm)
@@ -86,7 +86,7 @@ class Hyperelastic_axisymmetric_framework:
         self.v = ufl.TestFunction(self.V_u) # test function - shape function in the FEM
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
-        self.mech_params = self.mech_params = MechParams.from_json(mech_params_json)
+        self.mech_params = HyperelasticMaterial.from_json(mech_params_json)
         log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
 
@@ -303,7 +303,7 @@ class Hyperelastic_3D_framework:
                            $ElementData "e_1"/"e_2", the local reference system
                            self.e_1, self.e_2, self.e_3 (used for the
                            fibres) -- see mesh_io.read_mesh.
-        mech_params_json : material parameters, see parameters_class.MechParams.
+        mech_params_json : material parameters, see parameters_class.HyperelasticMaterial.
         """
         self.mesh_file = mesh_file
         mesh_data = read_mesh(mesh_file, comm)
@@ -323,7 +323,7 @@ class Hyperelastic_3D_framework:
         self.v = ufl.TestFunction(self.V_u) # test function - shape function in the FEM
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
-        self.mech_params = MechParams.from_json(mech_params_json)
+        self.mech_params = HyperelasticMaterial.from_json(mech_params_json)
         log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
     def _fibre_orientation_field(self):

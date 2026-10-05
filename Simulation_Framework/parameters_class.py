@@ -17,7 +17,7 @@ REQUIRED = {
 
 
 @dataclass
-class MechParams:
+class HyperelasticMaterial:
     sedf_type: SedfType = "Mooney-Rivlin" # default value
 
     # isotropic matrix (shared by both models)
