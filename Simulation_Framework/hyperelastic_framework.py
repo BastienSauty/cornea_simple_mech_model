@@ -88,16 +88,6 @@ class Hyperelastic_axisymmetric_framework:
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
         self.mech_params = self.mech_params = MechParams.from_json(mech_params_json)
-
-        # Anisotropic contribution. The fibre directions are fields, one unit vector
-        # per cell, transported from the mesh's local reference system (see
-        # _fibre_orientation_field)
-        if self.mech_params.sedf_type=='HGO':
-            self._fibre_orientation_field()
-
-
-        # Build the weak form directly
-        self.build_weak_form()
         log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
 
@@ -335,16 +325,6 @@ class Hyperelastic_3D_framework:
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
         self.mech_params = MechParams.from_json(mech_params_json)
-        
-        # Anisotropic contribution. The fibre directions are fields, one unit vector
-        # per cell, transported from the mesh's local reference system (see
-        # _fibre_orientation_field)
-        if self.mech_params.sedf_type=='HGO':
-            self._fibre_orientation_field()
-
-
-        # Build the weak form directly
-        self.build_weak_form()
         log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
     def _fibre_orientation_field(self):

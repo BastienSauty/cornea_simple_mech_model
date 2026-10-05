@@ -60,6 +60,12 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     # facet tags and local reference system -> mech.domain, ...
     mech = Hyperelastic_axisymmetric_framework(mesh_file, mech_params_json)
 
+    # Set the fiber orientation -> preprocess
+    if mech.mech_params.sedf_type=='HGO':
+        mech._fibre_orientation_field()
+    # Set the weak form    
+    mech.build_weak_form()
+
     # Boundary conditions
     # intraocular pressure, ramped during the simulation
     # (15 mmHg = 2.0e-3 MPa if lengths are in mm and stresses in MPa)
@@ -92,9 +98,9 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
 
 if __name__ == '__main__':
-    name = "Usecases/cornea_axi/cornea_IOP_Giammarini"
+    name = "Usecases/cornea_axi/cornea_IOP_Pandolfi"
     mesh_file = "Usecases/cornea_axi/cornea.msh"
-    mech_params_json = "Usecases/cornea_axi/mech_params_Giammarini2026.json"
+    mech_params_json = "Usecases/cornea_axi/mech_params_Pandolfi2006.json"
 
     history = run_simulation(name, mesh_file, mech_params_json, cornea_outputs)
 

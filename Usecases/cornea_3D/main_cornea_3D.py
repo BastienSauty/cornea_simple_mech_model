@@ -56,6 +56,8 @@ def cornea_outputs(mech):
         "apex_uz_anterior": lambda: u_ant()[2],
         "central_thickness": lambda: (z_ant + u_ant()[2]) - (z_post + u_post()[2]),
         "limbus_reaction_z": mech.surface_integral(traction_z, LIMBUS),
+        "posterior_reaction_z": mech.surface_integral(traction_z, POSTERIOR),
+        "anterior_reaction_z": mech.surface_integral(traction_z, ANTERIOR),
         "volume": mech.volume_integral(q["J"]),
     }
     return fields, scalars
@@ -67,6 +69,12 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     # Build the hyperelastic framework. The mesh file is read once, inside: mesh,
     # facet tags and local reference system -> mech.domain, ...
     mech = Hyperelastic_3D_framework(mesh_file, mech_params_json)
+
+    # Set the fiber orientation -> preprocess
+    if mech.mech_params.sedf_type=='HGO':
+        mech._fibre_orientation_field()
+    # Set the weak form    
+    mech.build_weak_form()
 
     # Boundary conditions
     # intraocular pressure, ramped during the simulation
