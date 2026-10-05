@@ -1,5 +1,6 @@
-# author : B. Sauty ; 23 Sept 2026
+# author : B. Sauty ; 3 Oct 2026
 # Main file to run a simulation for the cornea under pressure.
+# 3D mesh generated using Merlini's specifications. See Meshing_tools, make_3D_cornea
 # This file is specific to this run: the quantities of interest are defined here.
 
 import numpy as np
@@ -9,23 +10,29 @@ from dolfinx import fem
 from petsc4py.PETSc import ScalarType
 import ufl
 
-from Simulation_Framework import Hyperelastic_axisymmetric_framework, OutputManager, point_probe
+from Simulation_Framework import Hyperelastic_3D_framework, OutputManager, point_probe
 
 MMHG = 0.000133322      # 1 mmHg in MPa
 
-# physical tags written in cornea.msh by cornea/mesh_io.py
-ANTERIOR, POSTERIOR, LIMBUS, CENTRAL_LINE = 1, 2, 3, 4
+# physical tags written in cornea_3D_hex.msh by Meshing_tools toolbox
+ANTERIOR, POSTERIOR, LIMBUS = 1, 2, 3
 
 
 def axis_apex(mech, which):
-    """z coordinate (reference configuration) of the anterior (highest) or posterior (lowest) point on the axis."""
+    """z coordinate (reference configuration) of the anterior (highest) or posterior (lowest)
+    node on the axis x = y = 0. Needs mesh nodes on the axis (the structured hexahedral mesh
+    has them; the tetrahedral one does not)."""
     x = mech.domain.geometry.x
-    z = x[np.isclose(x[:, 0], 0.0, atol=1e-10), 1]
+    on_axis = np.abs(x[:, :2]).max(axis=1) < 1e-8
+    z = x[on_axis, 2]
     comm = mech.domain.comm
     if which == "anterior":
-        return comm.allreduce(z.max() if z.size else -np.inf, op=MPI.MAX)
-    return comm.allreduce(z.min() if z.size else np.inf, op=MPI.MIN)
-
+        apex = comm.allreduce(z.max() if z.size else -np.inf, op=MPI.MAX)
+    else:
+        apex = comm.allreduce(z.min() if z.size else np.inf, op=MPI.MIN)
+    if not np.isfinite(apex):
+        raise ValueError("no mesh node on the axis x = y = 0: cannot probe the apex")
+    return apex
 
 def cornea_outputs(mech):
     """Quantities of interest of this case. Returns (fields, scalars) for the OutputManager."""
@@ -36,18 +43,21 @@ def cornea_outputs(mech):
 
     # axial displacement of the apexes and deformed central thickness, probed on the axis
     z_ant, z_post = axis_apex(mech, "anterior"), axis_apex(mech, "posterior")
-    u_ant = point_probe(mech.domain, mech.u, (0.0, z_ant))
-    u_post = point_probe(mech.domain, mech.u, (0.0, z_post))
+    u_ant = point_probe(mech.domain, mech.u, (0.0, 0.0, z_ant))
+    u_post = point_probe(mech.domain, mech.u, (0.0, 0.0, z_post))
 
     # axial force of the limbus support on the cornea (full 3D ring): PK1 . N integrated on the limbus
     N = ufl.FacetNormal(mech.domain)
     P = q["PK1_stress"]
-    traction_z = P[1, 0] * N[0] + P[1, 1] * N[1]
+    # traction_z = ufl.dot(N, ufl.dot(P, N)) # P[1, 0] * N[0] + P[1, 1] * N[1]
+    traction_z = ufl.dot(P, N)[2]
 
     scalars = {
-        "apex_uz_anterior": lambda: u_ant()[1],
-        "central_thickness": lambda: (z_ant + u_ant()[1]) - (z_post + u_post()[1]),
+        "apex_uz_anterior": lambda: u_ant()[2],
+        "central_thickness": lambda: (z_ant + u_ant()[2]) - (z_post + u_post()[2]),
         "limbus_reaction_z": mech.surface_integral(traction_z, LIMBUS),
+        "posterior_reaction_z": mech.surface_integral(traction_z, POSTERIOR),
+        "anterior_reaction_z": mech.surface_integral(traction_z, ANTERIOR),
         "volume": mech.volume_integral(q["J"]),
     }
     return fields, scalars
@@ -58,7 +68,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
     # Build the hyperelastic framework. The mesh file is read once, inside: mesh,
     # facet tags and local reference system -> mech.domain, ...
-    mech = Hyperelastic_axisymmetric_framework(mesh_file, mech_params_json)
+    mech = Hyperelastic_3D_framework(mesh_file, mech_params_json)
 
     # Set the fiber orientation -> preprocess
     if mech.mech_params.sedf_type=='HGO':
@@ -74,10 +84,9 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     n_steps = 20
 
     boundary_conditions = [
-        ["Dirichlet", CENTRAL_LINE, ("clamped", 0)],   # rolling on the axis: u_r = 0, u_z free
-        # ["Slip",      LIMBUS,       None],           # limbus slides along its own line
         ["Dirichlet", LIMBUS,       ("clamped", 0)],
         ["Dirichlet", LIMBUS,       ("clamped", 1)],
+        ["Dirichlet", LIMBUS,       ("clamped", 2)],
         ["Pressure",  POSTERIOR,    p_iop],            # follower pressure normal to the posterior face
     ]                                                  # anterior face: free (zero traction)
     mech.build_BCs(boundary_conditions)
@@ -98,9 +107,9 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
 
 if __name__ == '__main__':
-    name = "Usecases/cornea_axi/cornea_IOP_Pandolfi"
-    mesh_file = "Usecases/cornea_axi/cornea.msh"
-    mech_params_json = "Usecases/cornea_axi/mech_params_Pandolfi2006.json"
+    name = "Usecases/cornea_3D/cornea_3D_IOP_fine"
+    mesh_file = "Usecases/cornea_3D/cornea_3D_hex_fine.msh"
+    mech_params_json = "Usecases/cornea_3D/mech_params_Pandolfi2006.json"
 
     history = run_simulation(name, mesh_file, mech_params_json, cornea_outputs)
 
@@ -110,3 +119,5 @@ if __name__ == '__main__':
         plt.ylabel("IOP [mmHg]")
         plt.xlabel("anterior apex displacement [µm]")
         plt.savefig(f"results/{name}_apex.png", dpi=150)
+
+    # run in parallel with : OMP_NUM_THREADS=1 mpirun -n 7 python Usecases/cornea_3D/main_cornea_3D.py

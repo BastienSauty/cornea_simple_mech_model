@@ -17,6 +17,8 @@ import ufl
 from petsc4py.PETSc import ScalarType
 from dolfinx import log
 
+from Simulation_Framework import log
+
 
 def _grad_axi(u, r):
     """
@@ -76,8 +78,8 @@ class Hyperelastic_axisymmetric_framework:
         self.e_2 = mesh_data.e_2
         self.e_3 = mesh_data.e_3
 
-        print(f"[setup] Mesh read from {mesh_file}"
-              + (" (with local reference system)" if mesh_data.has_lrs else ""))
+        log(f"[setup] Mesh read from {mesh_file}"
+              + (" (with local reference system)" if mesh_data.has_lrs else ""), comm=self.domain.comm)
 
         self.V_u = fem.functionspace(self.domain, ("Lagrange", 2, (self.domain.geometry.dim,))) # disp function space
 
@@ -86,17 +88,7 @@ class Hyperelastic_axisymmetric_framework:
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
         self.mech_params = self.mech_params = MechParams.from_json(mech_params_json)
-
-        # Anisotropic contribution. The fibre directions are fields, one unit vector
-        # per cell, transported from the mesh's local reference system (see
-        # _fibre_orientation_field)
-        if self.mech_params.sedf_type=='HGO':
-            self._fibre_orientation_field()
-
-
-        # Build the weak form directly
-        self.build_weak_form()
-        print(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}')
+        log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
 
     def _fibre_orientation_field(self):
@@ -114,8 +106,8 @@ class Hyperelastic_axisymmetric_framework:
  
         self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_3, a4_local)
         self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_3, a6_local)
-        print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
-              f"a6 = {self.mech_params.a6} (local frame)")
+        log(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
+              f"a6 = {self.mech_params.a6} (local frame)", comm=self.domain.comm)
 
     def build_weak_form(self):
         """
@@ -244,7 +236,7 @@ class Hyperelastic_axisymmetric_framework:
             else:
                 raise TypeError(f"Unknown boundary condition: {bc_type}")
 
-        print(f'[setup] Boundary conditions defined')
+        log(f'[setup] Boundary conditions defined', comm=self.domain.comm)
 
 
     def build_solver(self):
@@ -275,7 +267,7 @@ class Hyperelastic_axisymmetric_framework:
             petsc_options=petsc_options,
             petsc_options_prefix="hyperelasticity",
         )
-        print(f'[setup] Solver defined')
+        log(f'[setup] Solver defined', comm=self.domain.comm)
 
 
     def solve_one_step(self, n, p):
@@ -289,9 +281,8 @@ class Hyperelastic_axisymmetric_framework:
         num_its = snes.getIterationNumber()
         res_norm = snes.getFunctionNorm()
 
-        if self.domain.comm.rank == 0:
-            print(f"Step {n:3d} | load {p:.3e} | Newton iterations {num_its:2d} | "
-                  f"residual {res_norm:.3e} | reason {reason}")
+        log(f"Step {n:3d} | load {p:.3e} | Newton iterations {num_its:2d} | "
+            f"residual {res_norm:.3e} | reason {reason}", comm=self.domain.comm)
 
         if reason <= 0:
             print(snes.getConvergedReason(), snes.getIterationNumber())
@@ -324,8 +315,8 @@ class Hyperelastic_3D_framework:
         self.e_2 = mesh_data.e_2
         self.e_3 = mesh_data.e_3
 
-        print(f"[setup] Mesh read from {mesh_file}"
-              + (" (with local reference system)" if mesh_data.has_lrs else ""))
+        log(f"[setup] Mesh read from {mesh_file}"
+              + (" (with local reference system)" if mesh_data.has_lrs else ""), comm=self.domain.comm)
 
         self.V_u = fem.functionspace(self.domain, ("Lagrange", 2, (self.domain.geometry.dim,))) # disp function space
 
@@ -333,18 +324,8 @@ class Hyperelastic_3D_framework:
         self.v = ufl.TestFunction(self.V_u) # test function - shape function in the FEM
 
         # Store the mechanical parameters in the volume using a DataClass. See parameter_class
-        self.mech_params = self.mech_params = MechParams.from_json(mech_params_json)
-        
-        # Anisotropic contribution. The fibre directions are fields, one unit vector
-        # per cell, transported from the mesh's local reference system (see
-        # _fibre_orientation_field)
-        if self.mech_params.sedf_type=='HGO':
-            self._fibre_orientation_field()
-
-
-        # Build the weak form directly
-        self.build_weak_form()
-        print(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}')
+        self.mech_params = MechParams.from_json(mech_params_json)
+        log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
     def _fibre_orientation_field(self):
         """
@@ -361,8 +342,8 @@ class Hyperelastic_3D_framework:
  
         self.a4 = _push_local_frame(self.e_1, self.e_2, self.e_3, a4_local)
         self.a6 = _push_local_frame(self.e_1, self.e_2, self.e_3, a6_local)
-        print(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
-              f"a6 = {self.mech_params.a6} (local frame)")
+        log(f"[setup] Fibre fields built: a4 = {self.mech_params.a4}, "
+              f"a6 = {self.mech_params.a6} (local frame)", comm=self.domain.comm)
 
     def build_weak_form(self):
         """
@@ -383,7 +364,7 @@ class Hyperelastic_3D_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = self.mech_params.strain_energy_density_function(self.domain, self.F)
+        self.psi = self.mech_params.strain_energy_density_function(self)
         PK1 = ufl.diff(self.psi, self.F) # PK1 stress
 
         # Residuals
@@ -489,7 +470,7 @@ class Hyperelastic_3D_framework:
             else:
                 raise TypeError(f"Unknown boundary condition: {bc_type}")
 
-        print(f'[setup] Boundary conditions defined')
+        log(f'[setup] Boundary conditions defined', comm=self.domain.comm)
 
 
     def build_solver(self):
@@ -520,7 +501,7 @@ class Hyperelastic_3D_framework:
             petsc_options=petsc_options,
             petsc_options_prefix="hyperelasticity",
         )
-        print(f'[setup] Solver defined')
+        log(f'[setup] Solver defined', comm=self.domain.comm)
 
 
     def solve_one_step(self, n, p):
@@ -534,9 +515,8 @@ class Hyperelastic_3D_framework:
         num_its = snes.getIterationNumber()
         res_norm = snes.getFunctionNorm()
 
-        if self.domain.comm.rank == 0:
-            print(f"Step {n:3d} | load {p:.3e} | Newton iterations {num_its:2d} | "
-                  f"residual {res_norm:.3e} | reason {reason}")
+        log(f"Step {n:3d} | load {p:.3e} | Newton iterations {num_its:2d} | "
+            f"residual {res_norm:.3e} | reason {reason}", comm=self.domain.comm)
 
         if reason <= 0:
 

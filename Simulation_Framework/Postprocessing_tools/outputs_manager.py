@@ -1,4 +1,4 @@
-# Generic output manager (dolfinx 0.12).
+# Generic output manager (dolfinx 0.11).
 #
 # Writes named fields to an XDMF file (one time step per call to write) and named
 # scalars to a CSV file (one row per call to write). It knows nothing about the
