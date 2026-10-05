@@ -14,7 +14,7 @@ _EXPORTS = {
     "MeshData":                ".mesh_io",
     "write_mesh":              ".mesh_io",
     "top_cell_centroids":      ".mesh_io",
-    "MechParams":              ".parameters_class",
+    "HyperelasticMaterial":    ".parameters_class",
 
     "log":                     ".Postprocessing_tools.log_utils",
     "OutputManager":           ".Postprocessing_tools.outputs_manager",
@@ -39,7 +39,7 @@ def __getattr__(name):
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
     from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
     from .mesh_io import read_mesh, MeshData, top_cell_centroids
-    from .parameters_class import MechParams
+    from .parameters_class import HyperelasticMaterial
 
     from .Postprocessing_tools.outputs_manager import OutputManager
     from .Postprocessing_tools.output_utils import point_probe, average
