@@ -6,6 +6,7 @@
 
 from .parameters_class import MechParams
 from .mesh_io import read_mesh
+from .Postprocessing_tools.log_utils import log
 
 from functools import cached_property
 
@@ -15,9 +16,7 @@ from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx import fem, mesh, io
 import ufl
 from petsc4py.PETSc import ScalarType
-from dolfinx import log
 
-from Simulation_Framework import log
 
 
 def _grad_axi(u, r):
