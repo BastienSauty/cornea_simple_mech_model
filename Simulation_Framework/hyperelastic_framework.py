@@ -60,8 +60,8 @@ class Hyperelastic_axisymmetric_framework:
     """
     def __init__(self, mesh_file, mech_params_json, comm=MPI.COMM_WORLD):
         """
-        mesh_file        : gmsh 2.2 .msh file of the (r, z) section, as written by
-                           cornea_meshing_package: self.domain, self.facet_tag,
+        mesh_file        : gmsh 4.1 .msh file of the (r, z) section, as written by
+                           meshing_tools : self.domain, self.facet_tag,
                            self.cell_tags and, if the file stores them as
                            $ElementData "e_1"/"e_2", the local reference system
                            self.e_1, self.e_2, self.e83 (used for the
