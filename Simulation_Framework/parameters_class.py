@@ -11,7 +11,7 @@ import ufl
 # Solid part
 SedfType = Literal["Neo-Hookean", "Mooney-Rivlin", "HGO"]
 REQUIRED_SOLID = {
-    "Neo-Hookean":   ("C_10"), 
+    "Neo-Hookean":   ("C_10",), 
     "Mooney-Rivlin": ("C_10", "C_01"),
     "HGO":           ("C_10", "C_01", "k1", "k2", "a4", "a6", "kappa"),
 }
