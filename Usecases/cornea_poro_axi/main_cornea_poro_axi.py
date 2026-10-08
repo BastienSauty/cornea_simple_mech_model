@@ -2,6 +2,8 @@
 # Main file to run a simulation for the cornea under pressure.
 # Using the axisymmetric poroelastic framework
 
+# Reproduce the conditions of Giammarini 2026
+
 import numpy as np
 
 from mpi4py import MPI
@@ -65,19 +67,28 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     # intraocular pressure, ramped during the simulation
     # (15 mmHg = 2.0e-3 MPa if lengths are in mm and stresses in MPa)
     
-    p_max = 20 * MMHG
+    p_max = 18 * MMHG
     p_iop = fem.Constant(mech.domain, ScalarType(p_max))
-    n_steps = 50
-    t_max = 2.0
-    t_list = np.linspace(0, t_max, n_steps)
+    n_steps = 100
+    t_max = 1000
+    t_list = np.linspace(0, t_max, n_steps+1)
+
+    zeta = fem.Constant(mech.domain, ScalarType(1.5e-5))
+    r0 = fem.Constant(mech.domain, ScalarType(2))
+    w = fem.Constant(mech.domain, ScalarType(0.1))
+    chi = 0.5 * (1 - ufl.tanh((mech.r - r0) / w))   # w controls the transition width
+    zeta_expr = zeta * chi
 
     boundary_conditions = [
         ["Dirichlet_disp", CENTRAL_LINE, ("clamped", 0)],   # rolling on the axis: u_r = 0, u_z free
         ["Dirichlet_disp", LIMBUS,       ("clamped", 0)],   # Limbus clamped
         ["Dirichlet_disp", LIMBUS,       ("clamped", 1)],
-        ["Neumann_follower_disp",   POSTERIOR,    p_iop],            # follower pressure normal to the posterior face
+        # ["Neumann_disp",   POSTERIOR,    -p_iop*ufl.FacetNormal(mech.domain)],            # pressure normal to the posterior face
+        ["Neumann_follower_disp",   POSTERIOR,    p_iop],            # pressure normal to the posterior face
 
-        ["Dirichlet_pressure", POSTERIOR, "drained"],  # drained condition, equivalent to 0.0
+        # ["Dirichlet_pressure", POSTERIOR, "drained"],  # drained condition, equivalent to 0.0
+        ["Dirichlet_pressure", LIMBUS, "drained"],
+        ["Neumann_follower_pressure",   POSTERIOR,    zeta_expr]
     ]
     mech.build_BCs(boundary_conditions)
     mech.build_solver()
@@ -97,15 +108,16 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
 
 if __name__ == '__main__':
-    name = "Usecases/cornea_poro_axi/cornea_IOP_Poro"
-    mesh_file = "Usecases/cornea_poro_axi/cornea.msh"
-    mech_params_json = "Usecases/cornea_poro_axi/mech_params_Giammarini2026.json"
+    folder_name = "Usecases/cornea_poro_axi"
+    name = f"{folder_name}/cornea_IOP_Poro_pathological"
+    mesh_file = f"{folder_name}/cornea.msh"
+    mech_params_json = f"{folder_name}/mech_params_Giammarini2026.json"
 
     history = run_simulation(name, mesh_file, mech_params_json, cornea_outputs)
 
     if MPI.COMM_WORLD.rank == 0:
         import matplotlib.pyplot as plt
-        plt.plot(history["apex_uz_anterior"] * 1e3, history["t"], "o-")
+        plt.plot(history["apex_uz_anterior"][1:] * 1e3, history["t"][1:])
         plt.ylabel("Time [s]")
         plt.xlabel("anterior apex displacement [µm]")
         plt.savefig(f"results/{name}_apex.png", dpi=150)

@@ -222,7 +222,7 @@ class Poroelastic_axisymmetric_framework:
 
             elif bc_type == "Neumann_follower_pressure":
                 # flux per current area: da = J |F^-T N| dA (Nanson)
-                area_ratio = self.J * ufl.sqrt(ufl.dot(self.F_inv.T * N, self.F_inv.T * N))
+                area_ratio = self.J * ufl.sqrt(ufl.dot(_inplane(self.F_inv.T, N), _inplane(self.F_inv.T, N)))
                 self.bc_form += values * area_ratio * self.q * self.r * ds
 
             else:

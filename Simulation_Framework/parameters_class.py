@@ -153,7 +153,7 @@ class PorousMaterial:
         I = ufl.Identity(3)
         const = lambda x: fem.Constant(mech.domain, ScalarType(x))
         self.phi_s_cst = const(self.phi_s)
-        self.k_cst = const(self.phi_s)
+        self.k_cst = const(self.k)
         self.K_pullback = mech.J * ufl.dot(ufl.dot(mech.F_inv, self.k_cst * I), mech.F_inv.T)
 
     
