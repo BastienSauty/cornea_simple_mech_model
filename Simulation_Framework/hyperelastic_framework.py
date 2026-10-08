@@ -19,7 +19,7 @@ from petsc4py.PETSc import ScalarType
 
 
 
-def _grad_axi(u, r):
+def _grad_vector_axi(u, r):
     """
     Function to compute the axisymmetric gradient in the coordinate system (r, z, theta)
     with z the axis of symmetry and r = x[0] the radial coordinate
@@ -123,16 +123,16 @@ class Hyperelastic_axisymmetric_framework:
         self.r = self.x[0]
 
         # Deformation gradient
-        self.F = ufl.variable(I + _grad_axi(self.u, self.r))
+        self.F = ufl.variable(I + _grad_vector_axi(self.u, self.r))
         self.F_inv = ufl.inv(self.F)
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = self.mech_params.strain_energy_density_function(self)
-        PK1 = ufl.diff(self.psi, self.F) # PK1 stress
+        self.mech_params.strain_energy_density_function(self)
+        self.PK1 = ufl.diff(self.mech_params.psi, self.F) # PK1 stress
 
         # Residuals
-        self.R_u = ufl.inner(_grad_axi(self.v, self.r), PK1) * self.r * self.dx
+        self.R_u = ufl.inner(_grad_vector_axi(self.v, self.r), self.PK1) * self.r * self.dx
 
 
     @property
@@ -147,16 +147,14 @@ class Hyperelastic_axisymmetric_framework:
         nothing is compiled here, the OutputManager compiles what it is given.
         """
         I = ufl.Identity(3)
-        PK1 = ufl.diff(self.psi, self.F)
-        sigma = (1 / self.J) * ufl.dot(PK1, self.F.T)
+        sigma = (1 / self.J) * ufl.dot(self.PK1, self.F.T)
         dev = sigma - ufl.tr(sigma) / 3 * I
         return {
             "displacement": self.u,
-            "PK1_stress": PK1,
+            "PK1_stress": self.PK1,
             "cauchy_stress": sigma,
             "green_lagrange": 0.5 * (ufl.dot(self.F.T, self.F) - I),
             "J": self.J,
-            "psi": self.psi,
             "von_mises": ufl.sqrt(3 / 2 * ufl.inner(dev, dev)),
             "hydrostatic_pressure": -ufl.tr(sigma) / 3,
             "hoop_stretch": 1 + self.u[0] / self.r,
@@ -177,12 +175,11 @@ class Hyperelastic_axisymmetric_framework:
         facet_tag           : dolfinx MeshTags of the boundary facets (from cornea.msh).
         boundary_conditions : list of [type, marker, values]:
             "Dirichlet"         values = ("clamped" or Constant, axis), axis 0 = r, 1 = z
-            "Pressure"          values = p (Constant): follower pressure normal to the
-                                deformed surface, p > 0 pushes into the body
             "Slip"              values = None: slide along the boundary (u . N = 0, N the
                                 reference facet normal), or a constant vector m (u . m = 0).
                                 Enforced by a penalty, stiffness slip_penalty * mu / h.
-            "Neumann_follower"  values = reference traction vector (Constant)
+            "Neumann_follower"  values = p (Constant): follower pressure normal to the
+                                deformed surface, p > 0 pushes into the body
             "Neumann"           values = dead-load traction vector (Constant)
             "Robin"             values = (k, u_ref)
  
@@ -210,10 +207,9 @@ class Hyperelastic_axisymmetric_framework:
                     value = ScalarType(0.0)
                 self.bcs.append(fem.dirichletbc(value, dofs, self.V_u.sub(axis)))
  
-            elif bc_type == "Pressure":
+            elif bc_type == "Neumann_follower":
                 # Nanson: n da = J F^-T N dA ; traction t = -p n  ->  residual term + p J F^-T N . v
-                p = values
-                self.bc_form += p * self.J * ufl.dot(_inplane(self.F_inv.T, N), self.v) * self.r * ds
+                self.bc_form += values * self.J * ufl.dot(_inplane(self.F_inv.T, N), self.v) * self.r * ds
  
             elif bc_type == "Slip":
                 # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
@@ -221,10 +217,7 @@ class Hyperelastic_axisymmetric_framework:
                 m = N if values is None else values
                 k = slip_penalty * self.mech_params.mu / h
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * self.r * ds
- 
-            elif bc_type == "Neumann_follower":
-                self.bc_form += - self.J * ufl.dot(_inplane(self.F_inv.T, self.v), values) * self.r * ds
- 
+
             elif bc_type == "Neumann":
                 self.bc_form += - ufl.dot(self.v, values) * self.r * ds
  
@@ -363,11 +356,11 @@ class Hyperelastic_3D_framework:
         self.J = ufl.det(self.F)
 
         # Strain energy density function
-        self.psi = self.mech_params.strain_energy_density_function(self)
-        PK1 = ufl.diff(self.psi, self.F) # PK1 stress
+        self.mech_params.strain_energy_density_function(self)
+        self.PK1 = ufl.diff(self.mech_params.psi, self.F) # PK1 stress
 
         # Residuals
-        self.R_u = ufl.inner(ufl.grad(self.v), PK1) * self.dx
+        self.R_u = ufl.inner(ufl.grad(self.v), self.PK1) * self.dx
 
 
     @property
@@ -382,16 +375,14 @@ class Hyperelastic_3D_framework:
         nothing is compiled here, the OutputManager compiles what it is given.
         """
         I = ufl.Identity(3)
-        PK1 = ufl.diff(self.psi, self.F)
-        sigma = (1 / self.J) * ufl.dot(PK1, self.F.T)
+        sigma = (1 / self.J) * ufl.dot(self.PK1, self.F.T)
         dev = sigma - ufl.tr(sigma) / 3 * I
         return {
             "displacement": self.u,
-            "PK1_stress": PK1,
+            "PK1_stress": self.PK1,
             "cauchy_stress": sigma,
             "green_lagrange": 0.5 * (ufl.dot(self.F.T, self.F) - I),
             "J": self.J,
-            "psi": self.psi,
             "von_mises": ufl.sqrt(3 / 2 * ufl.inner(dev, dev)),
             "hydrostatic_pressure": -ufl.tr(sigma) / 3,
         }
@@ -411,12 +402,11 @@ class Hyperelastic_3D_framework:
         facet_tag           : dolfinx MeshTags of the boundary facets (from cornea.msh).
         boundary_conditions : list of [type, marker, values]:
             "Dirichlet"         values = ("clamped" or Constant, axis), axis 0 = r, 1 = z
-            "Pressure"          values = p (Constant): follower pressure normal to the
-                                deformed surface, p > 0 pushes into the body
             "Slip"              values = None: slide along the boundary (u . N = 0, N the
                                 reference facet normal), or a constant vector m (u . m = 0).
                                 Enforced by a penalty, stiffness slip_penalty * mu / h.
-            "Neumann_follower"  values = reference traction vector (Constant)
+            "Neumann_follower"  values = p (Constant): follower pressure normal to the
+                                deformed surface, p > 0 pushes into the body
             "Neumann"           values = dead-load traction vector (Constant)
             "Robin"             values = (k, u_ref)
  
@@ -444,10 +434,9 @@ class Hyperelastic_3D_framework:
                     value = ScalarType(0.0)
                 self.bcs.append(fem.dirichletbc(value, dofs, self.V_u.sub(axis)))
  
-            elif bc_type == "Pressure":
+            elif bc_type == "Neumann_follower":
                 # Nanson: n da = J F^-T N dA ; traction t = -p n  ->  residual term + p J F^-T N . v
-                p = values
-                self.bc_form += p * self.J * ufl.dot(ufl.dot(self.F_inv.T, N), self.v) * ds
+                self.bc_form += values * self.J * ufl.dot(ufl.dot(self.F_inv.T, N), self.v) * ds
  
             elif bc_type == "Slip":
                 # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
@@ -455,9 +444,6 @@ class Hyperelastic_3D_framework:
                 m = N if values is None else values
                 k = slip_penalty * self.mech_params.mu / h
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * ds
- 
-            elif bc_type == "Neumann_follower":
-                self.bc_form += - self.J * ufl.dot(ufl.dot(self.F_inv.T, self.v), ufl.as_vector(values)) * ds
  
             elif bc_type == "Neumann":
                 self.bc_form += - ufl.dot(self.v, ufl.as_vector(values)) * ds

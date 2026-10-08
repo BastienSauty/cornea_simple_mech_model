@@ -28,7 +28,6 @@ def cube_outputs(mech):
     one = fem.Constant(mech.domain, ScalarType(1.0))
     scalars = {
         "volume": mech.volume_integral(q["J"]),
-        "strain_energy": mech.volume_integral(q["psi"]),
         # mean axial displacement of the upper face Z1
         "uz_Z1": average(mech.surface_integral(q["displacement"][2], Z1),
                          mech.surface_integral(one, Z1), comm),
@@ -61,7 +60,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
         ["Dirichlet", Z0, ("clamped", 2)],
         # ["Dirichlet", Z1, (p_iop, 2)],
         
-        ["Neumann_follower",  Z1,  [0, 0, p_iop]],           # load applied on the upper face
+        ["Neumann_follower",  Z1,  p_iop],           # load applied on the upper face
     ]
     mech.build_BCs(boundary_conditions)
     mech.build_solver()
