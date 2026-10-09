@@ -79,6 +79,9 @@ class HyperelasticMaterial:
     @property
     def psi(self):
         if self._psi is None:
+            if self.D is None:
+                raise ValueError("The total strain energy needs the volumetric parameter D "
+                                "(required by the hyperelastic frameworks).")
             raise RuntimeError("Call strain_energy_density_function(mech) first")
         return self._psi
 
@@ -92,6 +95,11 @@ class HyperelasticMaterial:
         if self._psi_iso is None:
             raise RuntimeError("Call strain_energy_density_function(mech) first")
         return self._psi_iso
+    
+    @property
+    def mu(self):
+        """Initial shear modulus 2 (C_10 + C_01); C_01 is absent for Neo-Hookean."""
+        return 2.0 * (self.C_10 + (self.C_01 or 0.0))
 
     def strain_energy_density_function(self, mech):
         """Sets self.psi (total) and self.psi_iso (isochoric part, not for HGO)."""
@@ -123,10 +131,7 @@ class HyperelasticMaterial:
             self._psi = None            # psi unavailable without D
         else:
             D = const(self.D)
-            if self.sedf_type == "HGO":
-                psi_vol = 1/(2*D) * (mech.J**2 - 1 - 2*ufl.ln(mech.J))
-            else:
-                psi_vol = 1/D * (mech.J - 1)**2
+            psi_vol = 1/D * (mech.J - 1)**2
             self._psi = psi_iso + psi_vol
 
 
@@ -207,3 +212,7 @@ class PoroelasticMaterial:
     @property
     def phi_s(self):
         return self.porous.phi_s_cst
+
+    @property
+    def mu(self):
+        return self.solid.mu

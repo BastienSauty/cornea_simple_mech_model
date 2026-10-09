@@ -200,7 +200,7 @@ class Poroelastic_axisymmetric_framework:
                 # Nanson: n da = J F^-T N dA ; traction t = -p n  ->  residual term + p J F^-T N . v
                 self.bc_form += values * self.J * ufl.dot(_inplane(self.F_inv.T, N), self.v) * self.r * ds
             elif bc_type == "Slip_disp":
-                m = N if values is None else values
+                m = N if values is None else ufl.as_vector(values)
                 k = slip_penalty * self.mech_params.mu / h
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * self.r * ds
 
@@ -454,6 +454,13 @@ class Poroelastic_3D_framework:
             elif bc_type == "Robin_disp":
                 k, u_ref = values
                 self.bc_form += k * ufl.inner(self.u - u_ref, self.v) * ds
+            
+            elif bc_type == "Slip_disp":
+                # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
+                # so the nodes stay exactly on the same line.
+                m = N if values is None else ufl.as_vector(values)
+                k = slip_penalty * self.mech_params.mu / h
+                self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * ds
 
             # ---------------- fluid pressure ----------------
             elif bc_type == "Dirichlet_pressure":

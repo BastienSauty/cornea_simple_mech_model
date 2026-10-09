@@ -214,7 +214,7 @@ class Hyperelastic_axisymmetric_framework:
             elif bc_type == "Slip":
                 # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
                 # so the nodes stay exactly on the same line.
-                m = N if values is None else values
+                m = N if values is None else ufl.as_vector(values)
                 k = slip_penalty * self.mech_params.mu / h
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * self.r * ds
 
@@ -441,7 +441,7 @@ class Hyperelastic_3D_framework:
             elif bc_type == "Slip":
                 # u . m = 0 by penalty. On a straight boundary (the limbus) m = N is constant,
                 # so the nodes stay exactly on the same line.
-                m = N if values is None else values
+                m = N if values is None else ufl.as_vector(values)
                 k = slip_penalty * self.mech_params.mu / h
                 self.bc_form += k * ufl.dot(self.u, m) * ufl.dot(self.v, m) * ds
  

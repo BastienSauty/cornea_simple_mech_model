@@ -1,5 +1,6 @@
 # Python environment and caches
 __pycache__/
+.pytest_cache/
 
 # generated outputs
 results/
