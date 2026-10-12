@@ -10,11 +10,15 @@ from typing import TYPE_CHECKING
 _EXPORTS = {
     "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
     "Hyperelastic_3D_framework":  ".hyperelastic_framework",
+
+    "Poroelastic_axisymmetric_framework":  ".poroelastic_framework",
+
     "read_mesh":               ".mesh_io",
     "MeshData":                ".mesh_io",
     "write_mesh":              ".mesh_io",
     "top_cell_centroids":      ".mesh_io",
     "HyperelasticMaterial":    ".parameters_class",
+    "PoroelasticMaterial":     ".parameters_class",
 
     "log":                     ".Postprocessing_tools.log_utils",
     "OutputManager":           ".Postprocessing_tools.outputs_manager",
@@ -38,8 +42,10 @@ def __getattr__(name):
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
     from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
+    from .poroelastic_framework import Poroelastic_axisymmetric_framework
+
     from .mesh_io import read_mesh, MeshData, top_cell_centroids
-    from .parameters_class import HyperelasticMaterial
+    from .parameters_class import HyperelasticMaterial, PoroelasticMaterial
 
     from .Postprocessing_tools.outputs_manager import OutputManager
     from .Postprocessing_tools.output_utils import point_probe, average

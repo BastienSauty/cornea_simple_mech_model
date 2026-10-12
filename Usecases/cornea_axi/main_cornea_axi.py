@@ -78,7 +78,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
         # ["Slip",      LIMBUS,       None],           # limbus slides along its own line
         ["Dirichlet", LIMBUS,       ("clamped", 0)],
         ["Dirichlet", LIMBUS,       ("clamped", 1)],
-        ["Pressure",  POSTERIOR,    p_iop],            # follower pressure normal to the posterior face
+        ["Neumann_follower",  POSTERIOR,    p_iop],            # follower pressure normal to the posterior face
     ]                                                  # anterior face: free (zero traction)
     mech.build_BCs(boundary_conditions)
     mech.build_solver()

@@ -31,7 +31,9 @@ RUN pip3 install --no-cache-dir \
     matplotlib \
     spyder-kernels==3.1.* \
     h5py \
-    jupyter\
+    jupyter \
+    pytest \
+    sympy
     
 # Make port 8888 available to the world outside this container
 EXPOSE 8888
