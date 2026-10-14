@@ -242,7 +242,7 @@ def plot(results, filename):
 
 if __name__ == "__main__":
     mesh_file = "Usecases/cube/cube_hexa.msh"
-    folder = "Testing_tools/Check_against_analytical/Check_hyper_3D_MR_axial"
+    folder = "results/Testing_tools/Check_against_analytical/Check_hyper_3D_MR_axial"
 
     results = run_cases(make_cases(), run_simulation, cube_outputs, mesh_file, folder)
     if MPI.COMM_WORLD.rank == 0:

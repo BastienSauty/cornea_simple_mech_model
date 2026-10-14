@@ -281,7 +281,7 @@ def plot(results, filename):
 if __name__ == "__main__":
     from Meshing_tools.make_axisym_rectangle import RectangleParams, make_rectangle
  
-    folder = "Testing_tools/Check_against_analytical/Check_hyper_axi_MR_pressure"
+    folder = "results/Testing_tools/Check_against_analytical/Check_hyper_axi_MR_pressure"
     rect = RectangleParams(ri=0.5, re=1.0, h=1.0, n_r=20, n_z=2)
     outputs = partial(hollow_cylinder_outputs, rect=rect)
     results = run_cases(make_cases(), run_simulation, outputs, rect, folder)

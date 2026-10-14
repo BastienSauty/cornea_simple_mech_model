@@ -127,7 +127,7 @@ def compare(results):
 if __name__ == "__main__":
     mesh_file = "Usecases/cube/cube_hexa.msh"
     base_json = "Usecases/cornea_axi/mech_params_Pandolfi2006.json"
-    folder = "Testing_tools/Check_against_analytical/Check_hyper_3D_HGO_axial"
+    folder = "results/Testing_tools/Check_against_analytical/Check_hyper_3D_HGO_axial"
 
     cases = hgo.make_cases(base_json, FIBRE_CASES, axial=AXIAL)
     results = hgo.run_cases(cases, run_simulation, cube_outputs, mesh_file, folder)

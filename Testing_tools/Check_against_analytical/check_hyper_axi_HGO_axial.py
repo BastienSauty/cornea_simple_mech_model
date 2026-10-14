@@ -137,7 +137,7 @@ if __name__ == "__main__":
     from Meshing_tools.make_axisym_rectangle import RectangleParams, make_rectangle
 
     base_json = "Usecases/cornea_axi/mech_params_Pandolfi2006.json"
-    folder = Path("Testing_tools/Check_against_analytical/Check_hyper_axi_HGO_axial")
+    folder = Path("results/Testing_tools/Check_against_analytical/Check_hyper_axi_HGO_axial")
     rect = RectangleParams(ri=0.0, re=1.0, h=1.0, n_r=4, n_z=4)
 
     mesh_file = folder / "rectangle.msh"

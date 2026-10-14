@@ -234,7 +234,7 @@ def plot(results, filename):
 if __name__ == "__main__":
     from Meshing_tools.make_axisym_rectangle import RectangleParams, make_rectangle
     
-    folder = "Testing_tools/Check_against_analytical/Check_hyper_axi_MR_axial"
+    folder = "results/Testing_tools/Check_against_analytical/Check_hyper_axi_MR_axial"
     rect = RectangleParams(ri=0.0, re=1.0, h=1.0, n_r=4, n_z=4)
     results = run_cases(make_cases(), run_simulation, cylinder_outputs, rect, folder)
     if MPI.COMM_WORLD.rank == 0:
