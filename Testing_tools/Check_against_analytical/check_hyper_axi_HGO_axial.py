@@ -91,7 +91,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs, p_max):
     mech.build_solver()
 
     fields, scalars = outputs(mech)                    # after build_BCs: surface integrals need mech.ds
-    with OutputManager(f"results/{name}", mech.domain, fields, scalars,
+    with OutputManager(f"{name}", mech.domain, fields, scalars,
                        meshtags={"facet_tag": mech.facet_tag},
                        meta=mech.output_meta) as out:
         out.write(0.0)                                 # reference state

@@ -15,44 +15,7 @@ from mpi4py import MPI
 from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx import fem, mesh, io
 import ufl
-from petsc4py.PETSc import ScalarType
-
-
-
-def _grad_vector_axi(u, r):
-    """
-    Function to compute the axisymmetric gradient in the coordinate system (r, z, theta)
-    with z the axis of symmetry and r = x[0] the radial coordinate
-    """
-    grad2D = ufl.grad(u)
-    grad_axi = ufl.as_tensor([[grad2D[0,0], grad2D[0,1], 0],
-                                [grad2D[1,0], grad2D[1,1], 0],
-                                [0, 0, u[0]/r]])
-    return(grad_axi)
-
-def _inplane(A, w):
-    """
-    axisymmetric product of A * w for the Neumann follower pull back operation.
-    (r, z) components of A . (w_r, w_z, 0). Works for a 2x2 tensor or a 3x3
-    axisymmetric one (block-diagonal: the hoop component does not mix in)."""
-    return ufl.as_vector([A[0, 0] * w[0] + A[0, 1] * w[1],
-                          A[1, 0] * w[0] + A[1, 1] * w[1]])
-
-def _push_local_frame(e_1, e_2, e_3, A):
-    """
-    A = (a_1, e_2, a_3): a direction given by its components in the
-    mesh's local reference system (e_1, e_2, e_3) -> the same
-    direction in physical (r, z, theta)/(x,y,z) space, as a unit UFL vector.
-
-    (e_1, e_2, e_3) is an orthonormal triad by construction directly within
-    the mesh. In the case of axisymmetry, the e_3 is built as the out of plane direction
-    So this is a plain change of basis 
-    A does not need to be a unit vector itself only the final result is 
-    normalised.
-    """
-    a = A[0] * e_1 + A[1] * e_2 + A[2] * e_3
-    return a / ufl.sqrt(ufl.dot(a, a))
- 
+from petsc4py.PETSc import ScalarType 
 
 class Hyperelastic_axisymmetric_framework:
     """
