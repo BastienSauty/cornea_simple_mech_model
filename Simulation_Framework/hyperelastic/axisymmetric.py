@@ -4,9 +4,9 @@
 # Different classes are built in order to run several types of simulation. 
 # The geometry is always assumed to be axisymetrical. Single material
 
-from .parameters_class import HyperelasticMaterial
-from .mesh_io import read_mesh
-from .Postprocessing_tools.log_utils import log
+from ..parameters_class import HyperelasticMaterial
+from ..mesh_io import read_mesh
+from ..Postprocessing_tools.log_utils import log
 
 from functools import cached_property
 

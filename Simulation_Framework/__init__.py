@@ -8,10 +8,11 @@ import importlib
 from typing import TYPE_CHECKING
 
 _EXPORTS = {
-    "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
-    "Hyperelastic_3D_framework":  ".hyperelastic_framework",
+    "Hyperelastic_axisymmetric_framework":  ".hyperelastic",
+    "Hyperelastic_3D_framework":  ".hyperelastic",
 
-    "Poroelastic_axisymmetric_framework":  ".poroelastic_framework",
+    "Poroelastic_axisymmetric_framework":  ".poroelastic",
+    "Poroelastic_3D_framework":  ".poroelastic",
 
     "read_mesh":               ".mesh_io",
     "MeshData":                ".mesh_io",
@@ -41,8 +42,9 @@ def __getattr__(name):
 
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
-    from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
-    from .poroelastic_framework import Poroelastic_axisymmetric_framework
+    from .hyperelastic import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
+    from .poroelastic import Poroelastic_axisymmetric_framework, Poroelastic_3D_framework
+
 
     from .mesh_io import read_mesh, MeshData, top_cell_centroids
     from .parameters_class import HyperelasticMaterial, PoroelasticMaterial

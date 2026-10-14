@@ -4,9 +4,9 @@
 # Different classes are built in order to run several types of simulation. 
 # The geometry is always assumed to be axisymetrical. Single material
 
-from .parameters_class import HyperelasticMaterial
-from .mesh_io import read_mesh
-from .Postprocessing_tools.log_utils import log
+from ..parameters_class import HyperelasticMaterial
+from ..mesh_io import read_mesh
+from ..Postprocessing_tools.log_utils import log
 
 from functools import cached_property
 
@@ -17,6 +17,21 @@ from dolfinx import fem, mesh, io
 import ufl
 from petsc4py.PETSc import ScalarType 
 
+def _push_local_frame(e_1, e_2, e_3, A):
+    """
+    A = (a_1, e_2, a_3): a direction given by its components in the
+    mesh's local reference system (e_1, e_2, e_3) -> the same
+    direction in physical (r, z, theta)/(x,y,z) space, as a unit UFL vector.
+
+    (e_1, e_2, e_3) is an orthonormal triad by construction directly within
+    the mesh. In the case of axisymmetry, the e_3 is built as the out of plane direction
+    So this is a plain change of basis 
+    A does not need to be a unit vector itself only the final result is 
+    normalised.
+    """
+    a = A[0] * e_1 + A[1] * e_2 + A[2] * e_3
+    return a / ufl.sqrt(ufl.dot(a, a))
+ 
 class Hyperelastic_axisymmetric_framework:
     """
     This class builds a simple hyperelastic framework. Several hyperelastic law can be implemented.

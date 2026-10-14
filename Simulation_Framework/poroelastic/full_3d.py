@@ -4,11 +4,9 @@
 # This file manages the framework for the simulation of a poroelastic material with either an axisymmetric case or a full 3D case
 # Uses the same IO as hyperelastic framework
 
-from .parameters_class import PoroelasticMaterial
-from .mesh_io import read_mesh
-from .Postprocessing_tools.log_utils import log
-
-from .hyperelastic_framework import _grad_vector_axi, _inplane
+from ..parameters_class import PoroelasticMaterial
+from ..mesh_io import read_mesh
+from ..Postprocessing_tools.log_utils import log
 
 from functools import cached_property
 
