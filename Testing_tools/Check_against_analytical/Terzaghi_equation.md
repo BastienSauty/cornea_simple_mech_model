@@ -8,6 +8,7 @@ date: "14 October 2026"
 A saturated column of height $H$, loaded at once by a constant compressive stress $p_0$ on its top face, consolidates as fluid leaves through the top only. The axisymmetric cylinder ($r_i = 0$, height $H$) is laterally confined, so the deformation is uniaxial along $z$, with $z = 0$ at the bottom and $z = H$ at the top.
 
 - The constituents are incompressible: Biot coefficient equal to 1, no storage term.
+- The skeleton stress is $\phi_s\,\partial\psi_{\mathrm{iso}}/\partial\mathbf{F}$, where $\psi_{\mathrm{iso}}$ is the isochoric part of the strain energy only and $\phi_s$ is the solid fraction (Giammarini 2026). There is no volumetric skeleton energy: the volume change is governed by the fluid flow, and the pressure $p$ enforces it.
 - The permeability $k$ is constant (Darcy law, $w = -k\,\partial p/\partial z$).
 - The strain is small: the load is small compared with the constrained modulus $M$, so the response is linear.
 - Bottom: $u_z = 0$ and no flow. Lateral surface: $u_r = 0$ and no flow. Top: drained ($p = 0$) and loaded by $p_0$.
@@ -73,20 +74,20 @@ The final settlement is $-p_0 H / M$. The series converge fast for $T$ above abo
 
 # Parameters and compared quantities
 
-The constrained modulus comes from the linearisation of the Mooney-Rivlin law about the reference state,
+The skeleton energy is the isochoric part of the Mooney-Rivlin law,
 
 $$
-W = C_{10}\,(\bar I_1 - 3) + C_{01}\,(\bar I_2 - 3) + \frac{(J - 1)^2}{D}
+\psi_{\mathrm{iso}} = C_{10}\,(\bar I_1 - 3) + C_{01}\,(\bar I_2 - 3),
 $$
 
-(convention to be confirmed against the framework), which gives
+and the volumetric term $(J-1)^2/D$ is not used, so the parameter $D$ does not enter the problem. Linearising $\phi_s\,\partial\psi_{\mathrm{iso}}/\partial\mathbf{F}$ about the reference state gives a deviatoric stress, $\sigma'_{ij} = 2\mu\,\phi_s\,\mathrm{dev}(\varepsilon)_{ij}$ with $\mu = 2(C_{10} + C_{01})$. In the uniaxial strain state, $\mathrm{dev}(\varepsilon)_{zz} = 2\varepsilon_{zz}/3$, so the constrained modulus is
 
 $$
-\mu = 2\,(C_{10} + C_{01}), \qquad K = \frac{2}{D}, \qquad
-M = K + \frac{4}{3}\,\mu .
+M = \frac{4}{3}\,\phi_s\,\mu = \frac{8}{3}\,\phi_s\,(C_{10} + C_{01}),
+\qquad c_v = k\,M .
 $$
 
-The load must keep the strain $p_0/M$ small (below about 1 percent), so that the nonlinear solution stays close to the linear one. The time scale is $t_c = H^2/c_v$, with $k$ in the units of the Darcy law of the framework (length to the fourth power per force and time).
+The load must keep the strain $p_0/M$ small (below about 1 percent), so that the nonlinear solution stays close to the linear one. Because $M$ is small (it contains no bulk modulus), a given stress gives a much larger strain than for a skeleton with a volumetric stiffness. The time scale is $t_c = H^2/c_v$, with $k$ in the units of the Darcy law of the framework (length to the fourth power per force and time).
 
 | Quantity | Simulation | Analytical |
 |:--------------|:-------------------------------------------|:-------------------------------------------|

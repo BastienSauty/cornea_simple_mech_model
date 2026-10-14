@@ -195,12 +195,6 @@ class PoroelasticMaterial:
         # porous part : permeability
         self.porous.set_permeability(mech)
 
-    def strain_energy_density_function(self, mech):
-        return self.solid.strain_energy_density_function(mech)
-
-    def pullback_permeability_tensor(self, mech):
-        return self.porous.pullback_permeability_tensor(mech)
-
     @property
     def psi_iso(self):
         return self.solid.psi_iso

@@ -58,7 +58,7 @@ class Poroelastic_axisymmetric_framework:
                            Meshing_tools : self.domain, self.facet_tag,
                            self.cell_tags and, if the file stores them as
                            $ElementData "e_1"/"e_2", the local reference system
-                           self.e_1, self.e_2, self.e83 (used for the
+                           self.e_1, self.e_2, self.e_3 (used for the
                            fibres) -- see mesh_io.read_mesh.
         mech_params_json : material parameters, see parameters_class.PoroelasticMaterial.
         """
@@ -113,7 +113,6 @@ class Poroelastic_axisymmetric_framework:
         # Displacement residuals - Strain energy density function
         self.mech_params.set_material_laws(self)
 
-        # self.mech_params.strain_energy_density_function(self)
         PK1_iso = ufl.diff(self.mech_params.psi_iso, self.F)
 
         self.PK1 = self.mech_params.phi_s * PK1_iso - self.J * self.p * self.F_inv.T
@@ -260,8 +259,8 @@ class Poroelastic_axisymmetric_framework:
             "snes_type": "newtonls",
             "snes_linesearch_type": "none",
             "snes_monitor": None,
-            "snes_atol": 1e-8,
-            "snes_rtol": 1e-8,
+            "snes_atol": 1e-14,
+            "snes_rtol": 1e-10,
             "snes_stol": 1e-8,
             "ksp_type": "preonly",
             "pc_type": "lu",

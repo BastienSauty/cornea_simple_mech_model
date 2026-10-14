@@ -4,3 +4,12 @@ __pycache__/
 
 # generated outputs
 results/
+
+**results**/
+
+*.jpg
+*.xdmf
+*.h5
+*.msh
+*.png
+*.pdf
