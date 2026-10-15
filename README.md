@@ -24,6 +24,15 @@ Author: B. Sauty
 
 ---
 
+
+## 0. Pdf compile 
+
+In the terminal, to obtain a pdf version of this readme, run :
+ 
+```bash
+pandoc README.md -s -o README.pdf -V geometry:margin=2cm
+```
+
 ## 1. Installation (Docker)
 
 FEniCSx is run inside a Docker container built from the provided `Dockerfile`.
