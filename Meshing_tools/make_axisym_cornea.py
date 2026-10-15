@@ -22,7 +22,7 @@ class CorneaParams:
     h: float = 0.53       # central thickness
     R_v: float = 5.295    # posterior radial extent (limbus)
     n_u: int = 50         # nodes
-    n_v: int = 6
+    n_v: int = 20
 
 
 def f_conic(x, R, Q):

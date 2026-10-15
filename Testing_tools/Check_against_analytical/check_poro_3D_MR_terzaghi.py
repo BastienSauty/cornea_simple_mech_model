@@ -30,7 +30,7 @@ from Simulation_Framework import Poroelastic_3D_framework, OutputManager, averag
 X0, X1, Y0, Y1, Z0, Z1 = 1, 2, 3, 4, 5, 6
 
 HEIGHT = 1.0          # column height H (side of the cube)
-N_ELEM_Z = 6          # elements along z in cube_hexa.msh
+N_ELEM_Z = 5          # elements along z in cube_hexa.msh
 STRAIN = 5e-3         # p0 / M: small, so that the response stays linear
 # The diffusion length sqrt(T) H must span at least 2 elements at the first step: T_MIN = (2 / n_z)^2.
 # Below it the boundary layer is not resolved (and, with a refined mesh, T_MIN can be lowered).

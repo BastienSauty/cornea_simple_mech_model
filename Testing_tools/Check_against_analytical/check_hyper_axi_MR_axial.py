@@ -9,14 +9,12 @@ from dolfinx import fem
 from petsc4py.PETSc import ScalarType
 import ufl
 from itertools import product
-import shutil
-import tempfile
 import json
 
 from scipy.optimize import brentq
 from pathlib import Path
 
-from Simulation_Framework import Hyperelastic_axisymmetric_framework, OutputManager, point_probe
+from Simulation_Framework import Hyperelastic_axisymmetric_framework, OutputManager
 
 # mesh lines
 CENTRAL_LINE, LATERAL, BOTTOM, TOP = 4, 3, 2, 1

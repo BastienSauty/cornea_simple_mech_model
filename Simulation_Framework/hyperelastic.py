@@ -62,6 +62,8 @@ class Hyperelastic_framework:
         self.mech_params = HyperelasticMaterial.from_json(mech_params_json)
         log(f'[setup] Framework initialized; SEDF type : {self.mech_params.sedf_type}', comm=self.domain.comm)
 
+        if self.mech_params.sedf_type == "HGO":     # a4, a6 exist only for HGO
+            self._fibre_orientation_field()
 
     def _fibre_orientation_field(self):
         """
@@ -195,7 +197,7 @@ class Hyperelastic_framework:
             else:
                 raise TypeError(f"Unknown boundary condition: {bc_type}")
 
-        log(f'[setup] Boundary conditions defined', comm=self.domain.comm)
+        log('[setup] Boundary conditions defined', comm=self.domain.comm)
 
 
     def build_solver(self, **petsc_overrides):
@@ -208,7 +210,7 @@ class Hyperelastic_framework:
 
         self.problem = make_problem(self.residuals, self.u, self.bcs, "hyperelasticity",
                                     **petsc_overrides)
-        log(f'[setup] Solver defined', comm=self.domain.comm)
+        log('[setup] Solver defined', comm=self.domain.comm)
 
 
     def solve_one_step(self, n, p):

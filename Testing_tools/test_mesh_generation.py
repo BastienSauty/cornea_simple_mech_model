@@ -5,12 +5,6 @@ from mpi4py import MPI
 from dolfinx import mesh as dmesh
 from functools import partial
 
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[1]      # /workspace, if the test is in Testing_tools/
-sys.path[:0] = [str(ROOT / "Simulation_Framework"), str(ROOT / "Meshing_tools")]
-
 from Simulation_Framework import read_mesh, write_mesh
 from Meshing_tools.mesh_generation import mapped_mesh, push_vector, push_normal, reference_cylinder, reference_block
 from Meshing_tools.structured_cylinder import cylinder_arrays, structured_cylinder

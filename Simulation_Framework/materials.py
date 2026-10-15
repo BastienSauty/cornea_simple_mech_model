@@ -87,11 +87,6 @@ class HyperelasticMaterial:
 
     @property
     def psi_iso(self):
-        if self.sedf_type == "HGO":
-            raise NotImplementedError(
-                "psi_iso is not defined for HGO: the fibre invariants I4, I6 are "
-                "computed from the full C, so the fibre term is not purely deviatoric."
-            )
         if self._psi_iso is None:
             raise RuntimeError("Call strain_energy_density_function(mech) first")
         return self._psi_iso
@@ -115,7 +110,6 @@ class HyperelasticMaterial:
 
         if self.sedf_type == "HGO":
             k1, k2, kappa = const(self.k1), const(self.k2), const(self.kappa)
-            # C = ufl.dot(mech.F.T, mech.F)
             I4 = ufl.inner(ufl.outer(mech.a4, mech.a4), C_dev)
             I6 = ufl.inner(ufl.outer(mech.a6, mech.a6), C_dev)
             E4 = kappa * (I1_dev - 3) + (1 - 3 * kappa) * (I4 - 1)

@@ -40,16 +40,15 @@ from .results_reader import XDMFResults, extract_component, read_meta, read_scal
 DEFAULT_LABELS = {
     "t": "t",
     "volume": "volume",
-    "strain_energy": "strain energy",
     "displacement": r"$u$",
     "cauchy_stress": r"$\sigma$",
     "PK1_stress": r"$P$",
     "green_lagrange": r"$E$",
     "J": r"$J$",
     "hoop_stretch": r"$\lambda_\theta$",
-    "psi": r"$\psi$",
     "von_mises": r"$\sigma_{vM}$",
     "hydrostatic_pressure": r"$p$",
+    "fluid_pressure": r"$p_f$",
 }
 
 

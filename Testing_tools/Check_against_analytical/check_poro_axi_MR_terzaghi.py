@@ -19,7 +19,6 @@ import numpy as np
 from mpi4py import MPI
 from dolfinx import fem
 from petsc4py.PETSc import ScalarType
-from itertools import product
 import json
 
 from pathlib import Path

@@ -232,7 +232,7 @@ class Poroelastic_framework:
 
         self.problem = make_problem(res_block, [self.u, self.p], self.bcs, "poroelasticity",
                                     **petsc_overrides)
-        log(f'[setup] Solver defined', comm=self.domain.comm)
+        log('[setup] Solver defined', comm=self.domain.comm)
 
 
     def solve_one_step(self, n, p):

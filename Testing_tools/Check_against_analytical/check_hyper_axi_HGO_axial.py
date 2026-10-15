@@ -77,8 +77,6 @@ def run_simulation(name, mesh_file, mech_params_json, outputs, p_max):
     p_max : signed final load on TOP (positive = compression), ramped in N_STEPS steps."""
     mech = Hyperelastic_axisymmetric_framework(mesh_file, mech_params_json)
 
-    if mech.mech_params.sedf_type == 'HGO':
-        mech._fibre_orientation_field()
     mech.build_weak_form()
 
     p_load = fem.Constant(mech.domain, ScalarType(0.0))
