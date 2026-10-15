@@ -99,7 +99,7 @@ cornea_simple_mech_model/
 |   |-- __init__.py                       # lazy exports
 |   |-- hyperelastic_framework.py         # the two framework classes
 |   |-- mesh_io.py                        # .msh reader: tags + local reference system
-|   |-- parameters_class.py               # MechParams: material parameters and psi
+|   |-- materials.py               # MechParams: material parameters and psi
 |   `-- Postprocessing_managers/
 |       |-- outputs_manager.py            # OutputManager (needs dolfinx)
 |       |-- output_utils.py               # point_probe, average (need dolfinx)

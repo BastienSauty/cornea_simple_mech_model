@@ -18,8 +18,8 @@ _EXPORTS = {
     "MeshData":                ".mesh_io",
     "write_mesh":              ".mesh_io",
     "top_cell_centroids":      ".mesh_io",
-    "HyperelasticMaterial":    ".parameters_class",
-    "PoroelasticMaterial":     ".parameters_class",
+    "HyperelasticMaterial":    ".materials",
+    "PoroelasticMaterial":     ".materials",
 
     "log":                     ".postprocessing_tools.log_utils",
     "OutputManager":           ".postprocessing_tools.outputs_manager",
@@ -47,7 +47,7 @@ if TYPE_CHECKING:                        # lets IDEs / linters see the names
 
 
     from .mesh_io import read_mesh, MeshData, top_cell_centroids
-    from .parameters_class import HyperelasticMaterial, PoroelasticMaterial
+    from .materials import HyperelasticMaterial, PoroelasticMaterial
 
     from .postprocessing_tools.outputs_manager import OutputManager
     from .postprocessing_tools.output_utils import point_probe, average
