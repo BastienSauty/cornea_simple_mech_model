@@ -6,7 +6,7 @@
 
 from ..parameters_class import PoroelasticMaterial
 from ..mesh_io import read_mesh
-from ..Postprocessing_tools.log_utils import log
+from ..postprocessing_tools.log_utils import log
 
 from functools import cached_property
 
@@ -97,7 +97,7 @@ class Poroelastic_3D_framework:
     @property
     def output_meta(self):
         """Metadata for the OutputManager: labels of the components (r, z, theta), axisymmetric."""
-        return {"axes": ["r", "z", "t"], "axisymmetric": True}
+        return {"axes": ["x", "y", "z"], "axisymmetric": False}
 
     @cached_property
     def quantities(self):
@@ -116,26 +116,25 @@ class Poroelastic_3D_framework:
             "J": self.J,
             "von_mises": ufl.sqrt(3 / 2 * ufl.inner(dev, dev)),
             "hydrostatic_pressure": -ufl.tr(sigma) / 3,
-            "hoop_stretch": 1 + self.u[0] / self.r,
             "fluid_pressure": self.p
         }
 
     def volume_integral(self, expr):
         """UFL form of the integral of expr over the full 3D body (2 pi r weight)."""
-        return 2 * ufl.pi * expr * self.dx
+        return expr * self.dx
 
     def surface_integral(self, expr, marker):
         """UFL form of the integral of expr over the full 3D surface of tag `marker`. Needs build_BCs."""
         if not hasattr(self, "ds"):
             raise RuntimeError("call build_BCs before surface_integral (self.ds is defined there)")
-        return 2 * ufl.pi * expr * self.ds(marker)
+        return expr * self.ds(marker)
 
     def build_BCs(self, boundary_conditions, slip_penalty=1e3):
         """
         boundary_conditions : list of [type, marker, values]
 
         Displacement field u
-            "Dirichlet_disp"           values = ("clamped" or scalar/Constant, axis), axis 0 = r, 1 = z
+            "Dirichlet_disp"           values = ("clamped" or scalar/Constant, axis), axis 0 = x, 1 = y, 2 = z
             "Neumann_disp"             values = dead-load traction vector (reference area)
             "Neumann_follower_disp"    values = pressure that is applied on the normal of the surface
             "Slip_disp"                values = None (u . N = 0) or a constant vector m (u . m = 0),

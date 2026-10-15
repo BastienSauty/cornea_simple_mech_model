@@ -6,7 +6,7 @@
 
 from ..parameters_class import PoroelasticMaterial
 from ..mesh_io import read_mesh
-from ..Postprocessing_tools.log_utils import log
+from ..postprocessing_tools.log_utils import log
 
 from functools import cached_property
 
