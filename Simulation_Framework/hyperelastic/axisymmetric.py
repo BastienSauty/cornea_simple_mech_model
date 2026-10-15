@@ -7,12 +7,12 @@
 from ..parameters_class import HyperelasticMaterial
 from ..mesh_io import read_mesh
 from ..postprocessing_tools.log_utils import log
+from ..solver import make_problem, solve_and_report
 
 from functools import cached_property
 
 from mpi4py import MPI
  
-from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx import fem, mesh, io
 import ufl
 from petsc4py.PETSc import ScalarType
@@ -230,8 +230,22 @@ class Hyperelastic_axisymmetric_framework:
 
         log(f'[setup] Boundary conditions defined', comm=self.domain.comm)
 
+    def build_solver(self, **petsc_overrides):
+        """
+        build the solver using the common function defined in solver.py
+        """
+        self.residuals = self.R_u + self.bc_form
+        self.problem = make_problem(self.residuals, self.u, self.bcs, "hyperelasticity",
+                                    **petsc_overrides)
+        log('[setup] Solver defined', comm=self.domain.comm)
 
-    def build_solver(self):
+    def solve_one_step(self, n, p):
+        """
+        Solve one load step using the common function defined in solver.py
+        """
+        solve_and_report(self.problem, n, p, self.domain.comm)
+
+    def build_solver_old(self):
         """
         build the solver based on the residuals definition.
         """
@@ -262,7 +276,7 @@ class Hyperelastic_axisymmetric_framework:
         log(f'[setup] Solver defined', comm=self.domain.comm)
 
 
-    def solve_one_step(self, n, p):
+    def solve_one_step_old(self, n, p):
         """
         Solve one load step (called after changing the BCs) and print a summary.
         n : step number, p : load value (for the printout)

@@ -7,12 +7,12 @@
 from ..parameters_class import PoroelasticMaterial
 from ..mesh_io import read_mesh
 from ..postprocessing_tools.log_utils import log
+from ..solver import make_problem, solve_and_report
 
 from functools import cached_property
 
 from mpi4py import MPI
  
-from dolfinx.fem.petsc import NonlinearProblem
 from dolfinx import fem, mesh, io
 import ufl
 from petsc4py.PETSc import ScalarType
@@ -212,57 +212,19 @@ class Poroelastic_3D_framework:
         log('[setup] Boundary conditions defined', comm=self.domain.comm)
 
 
-    def build_solver(self):
+    def build_solver(self, **petsc_overrides):
         """
-        build the solver based on the residuals definition.
+        build the solver using the common function defined in solver.py
         """
-        # Assemble Residuals
         self.residuals = self.R_u + self.R_p + self.bc_form
         res_block = ufl.extract_blocks(self.residuals)
-
-        # log.set_log_level(log.LogLevel.INFO)
-
-        petsc_options = {
-            "snes_type": "newtonls",
-            "snes_linesearch_type": "none",
-            "snes_monitor": None,
-            "snes_atol": 1e-14,
-            "snes_rtol": 1e-10,
-            "snes_stol": 1e-8,
-            "ksp_type": "preonly",
-            "pc_type": "lu",
-            "pc_factor_mat_solver_type": "mumps",
-        }
-
-        self.problem = NonlinearProblem(
-            res_block,
-            [self.u, self.p],
-            bcs=self.bcs,
-            petsc_options=petsc_options,
-            petsc_options_prefix="poroelasticity",
-        )
-        log(f'[setup] Solver defined', comm=self.domain.comm)
-
-
+        self.problem = make_problem(res_block, [self.u, self.p], self.bcs, "poroelasticity",
+                                    **petsc_overrides)
+        log('[setup] Solver defined', comm=self.domain.comm)
 
     def solve_one_step(self, n, p):
         """
-        Solve one load step (called after changing the BCs) and print a summary.
-        n : step number, p : step value (for the printout)
+        Solve one load step using the common function defined in solver.py
         """
-        self.problem.solve()
-        snes = self.problem.solver
-        reason = snes.getConvergedReason()
-        num_its = snes.getIterationNumber()
-        res_norm = snes.getFunctionNorm()
-
-        log(f"Step {n:3d} | load {p:.3e} | Newton iterations {num_its:2d} | "
-            f"residual {res_norm:.3e} | reason {reason}", comm=self.domain.comm)
-
-        # update history variable for time discretization
-        self.u_n.interpolate(self.u)
-
-        if reason <= 0:
-            print(snes.getConvergedReason(), snes.getIterationNumber())
-            print(snes.getConvergenceHistory())
-            raise RuntimeError(f"no convergence at step {n}, p = {p} (SNES reason {reason})")
+        solve_and_report(self.problem, n, p, self.domain.comm)
+        self.u_n.interpolate(self.u)      # history variable for J_dot
