@@ -3,8 +3,6 @@
 # This file is specific to this run: the quantities of interest are defined here.
 
 import numpy as np
-from pathlib import Path
-
 from mpi4py import MPI
 from dolfinx import fem
 from petsc4py.PETSc import ScalarType
@@ -43,9 +41,6 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
     mech = Hyperelastic_3D_framework(mesh_file, mech_params_json)
 
-    # Set the fiber orientation -> preprocess
-    if mech.mech_params.sedf_type=='HGO':
-        mech._fibre_orientation_field()
     # Set the weak form    
     mech.build_weak_form()
 

@@ -87,11 +87,6 @@ class HyperelasticMaterial:
 
     @property
     def psi_iso(self):
-        if self.sedf_type == "HGO":
-            raise NotImplementedError(
-                "psi_iso is not defined for HGO: the fibre invariants I4, I6 are "
-                "computed from the full C, so the fibre term is not purely deviatoric."
-            )
         if self._psi_iso is None:
             raise RuntimeError("Call strain_energy_density_function(mech) first")
         return self._psi_iso
@@ -115,9 +110,8 @@ class HyperelasticMaterial:
 
         if self.sedf_type == "HGO":
             k1, k2, kappa = const(self.k1), const(self.k2), const(self.kappa)
-            C = ufl.dot(mech.F.T, mech.F)
-            I4 = ufl.inner(ufl.outer(mech.a4, mech.a4), C)
-            I6 = ufl.inner(ufl.outer(mech.a6, mech.a6), C)
+            I4 = ufl.inner(ufl.outer(mech.a4, mech.a4), C_dev)
+            I6 = ufl.inner(ufl.outer(mech.a6, mech.a6), C_dev)
             E4 = kappa * (I1_dev - 3) + (1 - 3 * kappa) * (I4 - 1)
             E6 = kappa * (I1_dev - 3) + (1 - 3 * kappa) * (I6 - 1)
             fibre = lambda E: ufl.conditional(ufl.gt(E, 0.0), ufl.exp(k2 * E**2) - 1, 0.0)
@@ -195,15 +189,13 @@ class PoroelasticMaterial:
         # porous part : permeability
         self.porous.set_permeability(mech)
 
-    def strain_energy_density_function(self, mech):
-        return self.solid.strain_energy_density_function(mech)
-
-    def pullback_permeability_tensor(self, mech):
-        return self.porous.pullback_permeability_tensor(mech)
-
     @property
     def psi_iso(self):
         return self.solid.psi_iso
+
+    @property
+    def psi(self):
+        return self.solid.psi
 
     @property
     def K_pullback(self):

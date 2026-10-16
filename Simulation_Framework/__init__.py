@@ -8,25 +8,26 @@ import importlib
 from typing import TYPE_CHECKING
 
 _EXPORTS = {
-    "Hyperelastic_axisymmetric_framework":  ".hyperelastic_framework",
-    "Hyperelastic_3D_framework":  ".hyperelastic_framework",
+    "Hyperelastic_axisymmetric_framework":  ".hyperelastic",
+    "Hyperelastic_3D_framework":  ".hyperelastic",
 
-    "Poroelastic_axisymmetric_framework":  ".poroelastic_framework",
+    "Poroelastic_axisymmetric_framework":  ".poroelastic",
+    "Poroelastic_3D_framework":  ".poroelastic",
 
     "read_mesh":               ".mesh_io",
     "MeshData":                ".mesh_io",
     "write_mesh":              ".mesh_io",
     "top_cell_centroids":      ".mesh_io",
-    "HyperelasticMaterial":    ".parameters_class",
-    "PoroelasticMaterial":     ".parameters_class",
+    "HyperelasticMaterial":    ".materials",
+    "PoroelasticMaterial":     ".materials",
 
-    "log":                     ".Postprocessing_tools.log_utils",
-    "OutputManager":           ".Postprocessing_tools.outputs_manager",
-    "point_probe":             ".Postprocessing_tools.output_utils",
-    "average":                 ".Postprocessing_tools.output_utils",
+    "log":                     ".postprocessing_tools.log_utils",
+    "OutputManager":           ".postprocessing_tools.outputs_manager",
+    "point_probe":             ".postprocessing_tools.output_utils",
+    "average":                 ".postprocessing_tools.output_utils",
 
-    "PlotManager":             ".Postprocessing_tools.plots_manager",
-    "compare_scalars":         ".Postprocessing_tools.plots_manager",
+    "PlotManager":             ".postprocessing_tools.plots_manager",
+    "compare_scalars":         ".postprocessing_tools.plots_manager",
 }
 
 __all__ = list(_EXPORTS)
@@ -41,14 +42,15 @@ def __getattr__(name):
 
 
 if TYPE_CHECKING:                        # lets IDEs / linters see the names
-    from .hyperelastic_framework import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
-    from .poroelastic_framework import Poroelastic_axisymmetric_framework
+    from .hyperelastic import Hyperelastic_axisymmetric_framework, Hyperelastic_3D_framework
+    from .poroelastic import Poroelastic_axisymmetric_framework, Poroelastic_3D_framework
+
 
     from .mesh_io import read_mesh, MeshData, top_cell_centroids
-    from .parameters_class import HyperelasticMaterial, PoroelasticMaterial
+    from .materials import HyperelasticMaterial, PoroelasticMaterial
 
-    from .Postprocessing_tools.outputs_manager import OutputManager
-    from .Postprocessing_tools.output_utils import point_probe, average
-    from .Postprocessing_tools.plots_manager import PlotManager, compare_scalars
+    from .postprocessing_tools.outputs_manager import OutputManager
+    from .postprocessing_tools.output_utils import point_probe, average
+    from .postprocessing_tools.plots_manager import PlotManager, compare_scalars
 
-    from .Postprocessing_tools.log_utils import log
+    from .postprocessing_tools.log_utils import log

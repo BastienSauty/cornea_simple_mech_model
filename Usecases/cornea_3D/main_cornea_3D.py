@@ -70,9 +70,6 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     # facet tags and local reference system -> mech.domain, ...
     mech = Hyperelastic_3D_framework(mesh_file, mech_params_json)
 
-    # Set the fiber orientation -> preprocess
-    if mech.mech_params.sedf_type=='HGO':
-        mech._fibre_orientation_field()
     # Set the weak form    
     mech.build_weak_form()
 

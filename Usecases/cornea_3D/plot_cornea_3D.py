@@ -1,7 +1,7 @@
 # Plotting script for the cornea IOP run. Runs without dolfinx:
 #   python plot_cornea.py
 import matplotlib.pyplot as plt
-from Simulation_Framework import PlotManager, compare_scalars
+from Simulation_Framework import PlotManager
 
 basename = "Usecases/cornea_3D/cornea_3D_IOP_fine"
 out = f"results/{basename}"

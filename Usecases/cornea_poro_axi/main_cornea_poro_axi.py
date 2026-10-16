@@ -70,7 +70,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     p_max = 18 * MMHG
     p_iop = fem.Constant(mech.domain, ScalarType(p_max))
     n_steps = 100
-    t_max = 1000
+    t_max = 10
     t_list = np.linspace(0, t_max, n_steps+1)
 
     zeta = fem.Constant(mech.domain, ScalarType(1.5e-5))
@@ -88,7 +88,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
         # ["Dirichlet_pressure", POSTERIOR, "drained"],  # drained condition, equivalent to 0.0
         ["Dirichlet_pressure", LIMBUS, "drained"],
-        ["Neumann_follower_pressure",   POSTERIOR,    zeta_expr]
+        # ["Neumann_follower_pressure",   POSTERIOR,    zeta_expr]
     ]
     mech.build_BCs(boundary_conditions)
     mech.build_solver()
@@ -109,7 +109,7 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
 
 if __name__ == '__main__':
     folder_name = "Usecases/cornea_poro_axi"
-    name = f"{folder_name}/cornea_IOP_Poro_pathological"
+    name = f"{folder_name}/cornea_IOP_Poro"
     mesh_file = f"{folder_name}/cornea.msh"
     mech_params_json = f"{folder_name}/mech_params_Giammarini2026.json"
 

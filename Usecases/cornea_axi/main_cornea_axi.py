@@ -13,7 +13,7 @@ from Simulation_Framework import Hyperelastic_axisymmetric_framework, OutputMana
 
 MMHG = 0.000133322      # 1 mmHg in MPa
 
-# physical tags written in cornea.msh by cornea/mesh_io.py
+# physical tags written in cornea.msh by Meshing_tools
 ANTERIOR, POSTERIOR, LIMBUS, CENTRAL_LINE = 1, 2, 3, 4
 
 
@@ -60,9 +60,6 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     # facet tags and local reference system -> mech.domain, ...
     mech = Hyperelastic_axisymmetric_framework(mesh_file, mech_params_json)
 
-    # Set the fiber orientation -> preprocess
-    if mech.mech_params.sedf_type=='HGO':
-        mech._fibre_orientation_field()
     # Set the weak form    
     mech.build_weak_form()
 
