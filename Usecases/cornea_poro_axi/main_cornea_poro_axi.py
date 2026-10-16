@@ -70,8 +70,11 @@ def run_simulation(name, mesh_file, mech_params_json, outputs):
     p_max = 18 * MMHG
     p_iop = fem.Constant(mech.domain, ScalarType(p_max))
     n_steps = 100
-    t_max = 10
-    t_list = np.linspace(0, t_max, n_steps+1)
+    t_max = 100
+    t_min = 1e-1   # first time step, to be tuned
+    t_geom = 10
+
+    t_list = np.concatenate(([0.0], np.geomspace(t_min, t_geom, n_steps//2), np.linspace(t_geom + (t_max-t_geom)*2/n_steps, t_max, n_steps//2)))
 
     zeta = fem.Constant(mech.domain, ScalarType(1.5e-5))
     r0 = fem.Constant(mech.domain, ScalarType(2))

@@ -7,10 +7,10 @@
 #     p(0,t)/p0 = sum_m 2(-1)^m / M_m  exp(-M_m^2 T)           (bottom, impervious)
 #     U(T)      = 1 - sum_m 2 / M_m^2  exp(-M_m^2 T)           (degree of consolidation)
 #     with T = c_v t / H^2,  c_v = k M,  M_m = (2m + 1) pi / 2.
-# In the framework the skeleton stress is phi_s dpsi_iso/dF - J p F^-T, with psi_iso the
-# isochoric part of the Mooney-Rivlin energy only (Giammarini 2026): the parameter D is not
-# used, and the drained constrained modulus is
-#     M = (4/3) phi_s mu,  mu = 2 (C_10 + C_01).
+# In the framework the skeleton stress is phi_s dpsi/dF - J p F^-T, with psi = psi_iso + psi_vol
+# the full Mooney-Rivlin energy, psi_vol = (J - 1)^2 / D. The linearised drained moduli are
+#     K = 2 / D,  mu = 2 (C_10 + C_01),
+#     M = phi_s (K + 4 mu / 3)        (drained constrained modulus).
 # Cases: the baseline, a 10 times larger permeability, a different phi_s (M changes), and a
 # different D (nothing must change). In T all cases must fall on the same analytical curves.
 
@@ -70,11 +70,13 @@ def column_outputs(mech):
 # 2. run simulation function
 # ----------------------------------------------------------------------------------------
 def terzaghi_parameters(params):
-    """Drained constrained modulus M = (4/3) phi_s mu, consolidation coefficient c_v = k M, and
-    the load p0 = STRAIN * M for a material parameter dictionary (Mooney-Rivlin, k = permeability).
-    D does not enter: the framework has no volumetric skeleton energy."""
+    """Drained constrained modulus M = phi_s (K + 4 mu / 3), consolidation coefficient c_v = k M,
+    and the load p0 = STRAIN * M for a material parameter dictionary (Mooney-Rivlin,
+    k = permeability). K = 2 / D comes from psi_vol = (J - 1)^2 / D, and phi_s multiplies
+    the whole skeleton stress."""
     mu = 2.0 * (params["C_10"] + params["C_01"])
-    M = 4.0 * params["phi_s"] * mu / 3.0
+    K = 2.0 / params["D"]
+    M = params["phi_s"] * (K + 4.0 * mu / 3.0)
     return {"M": M, "c_v": params["k"] * M, "p0": STRAIN * M}
 
 
@@ -146,7 +148,7 @@ BASE = {"sedf_type": "Mooney-Rivlin", "C_10": 0.5, "C_01": -0.175, "D": 0.4,
 
 def make_cases(base=BASE, variations=({}, {"k": 1.5e-2}, {"phi_s": 0.4}, {"D": 0.04})):
     """Parameter sets: the baseline, a 10 times larger permeability, a different solid fraction
-    (M is multiplied by 2), and a different D (no effect expected: D is not used).
+    (M is multiplied by 2), and a different D (K = 2 / D is multiplied by 10, M changes).
     In T = c_v t / H^2 all cases must fall on the same analytical curves."""
     return [{**base, **v} for v in variations]
 
