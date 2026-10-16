@@ -95,9 +95,9 @@ class Poroelastic_framework:
         # Displacement residuals - Strain energy density function
         self.mech_params.set_material_laws(self)
 
-        PK1_iso = ufl.diff(self.mech_params.psi_iso, self.F)
-
-        self.PK1 = self.mech_params.phi_s * PK1_iso - self.J * self.p * self.F_inv.T
+        # PK1_iso = ufl.diff(self.mech_params.psi_iso, self.F)
+        PK1_solid = ufl.diff(self.mech_params.psi, self.F)
+        self.PK1 = self.mech_params.phi_s * PK1_solid - self.J * self.p * self.F_inv.T
         self.R_u = ufl.inner(geo.grad_vector(self.v, self.x), self.PK1) * self.weight * self.dx
 
         # Conservation of mass : porous equilibrium

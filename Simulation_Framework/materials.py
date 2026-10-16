@@ -194,6 +194,10 @@ class PoroelasticMaterial:
         return self.solid.psi_iso
 
     @property
+    def psi(self):
+        return self.solid.psi
+
+    @property
     def K_pullback(self):
         return self.porous.K_pullback
 
